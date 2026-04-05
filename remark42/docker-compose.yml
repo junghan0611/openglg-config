@@ -1,0 +1,29 @@
+services:
+  remark42:
+    image: ghcr.io/umputun/remark42:latest
+    container_name: remark42
+    restart: unless-stopped
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    expose:
+      - "8080"
+
+    env_file: .env
+
+    environment:
+      - SSL_TYPE=none   # Caddy가 HTTPS 처리
+
+    volumes:
+      - ${HOME}/docker-data/remark42/var:/srv/var
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,43 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "/home/node/.openclaw/workspace",
+      "compaction": { "mode": "safeguard" },
+      "maxConcurrent": 2
+    },
+    "list": [
+      {
+        "id": "main",
+        "model": "anthropic/claude-sonnet-4-6"
+      }
+    ]
+  },
+  "commands": {
+    "native": "auto"
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "<TELEGRAM_BOT_TOKEN>",
+      "dmPolicy": "pairing",
+      "streamMode": "partial",
+      "accounts": {
+        "default": {
+          "enabled": true,
+          "botToken": "<TELEGRAM_BOT_TOKEN>",
+          "dmPolicy": "pairing",
+          "streamMode": "partial"
+        }
+      }
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "lan",
+    "auth": {
+      "mode": "token",
+      "token": "<GATEWAY_TOKEN>"
+    }
+  }
+}

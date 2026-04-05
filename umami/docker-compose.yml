@@ -1,0 +1,43 @@
+services:
+  umami-db:
+    image: postgres:16-alpine
+    container_name: umami-db
+    restart: unless-stopped
+
+    environment:
+      - POSTGRES_USER=umami
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=umami
+
+    volumes:
+      - ${HOME}/docker-data/umami/db:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - umami-internal
+
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: umami
+    restart: unless-stopped
+    depends_on:
+      umami-db:
+        condition: service_healthy
+
+    environment:
+      - DATABASE_URL=postgresql://umami:${POSTGRES_PASSWORD}@umami-db:5432/umami
+      - APP_SECRET=${APP_SECRET}
+
+    networks:
+      - umami-internal
+      - proxy
+
+networks:
+  umami-internal:
+  proxy:
+    external: true

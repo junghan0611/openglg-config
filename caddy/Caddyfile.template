@@ -1,0 +1,19 @@
+# === Caddy 리버스 프록시 설정 ===
+# 이 파일을 Caddyfile로 복사 후 도메인을 수정하세요.
+# cp Caddyfile.template Caddyfile
+
+# 디지털 가든 (Quartz 정적 사이트)
+garden.example.com {
+    root * /srv/quartz
+    file_server
+}
+
+# Remark42 댓글
+comments.example.com {
+    reverse_proxy remark42:8080
+}
+
+# Umami 웹 분석
+analytics.example.com {
+    reverse_proxy umami:3000
+}
