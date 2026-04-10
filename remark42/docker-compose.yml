@@ -19,7 +19,7 @@ services:
       - SSL_TYPE=none   # Caddy가 HTTPS 처리
 
     volumes:
-      - ${HOME}/docker-data/remark42/var:/srv/var
+      - ${DATA_DIR:-~/docker-data}/remark42/var:/srv/var
 
     networks:
       - proxy

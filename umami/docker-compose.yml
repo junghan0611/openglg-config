@@ -10,7 +10,7 @@ services:
       - POSTGRES_DB=umami
 
     volumes:
-      - ${HOME}/docker-data/umami/db:/var/lib/postgresql/data
+      - ${DATA_DIR:-~/docker-data}/umami/db:/var/lib/postgresql/data
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U umami"]

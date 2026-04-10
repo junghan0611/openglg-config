@@ -14,8 +14,8 @@ services:
 
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ${HOME}/docker-data/caddy/data:/data
-      - ${HOME}/docker-data/caddy/config:/config
+      - ${DATA_DIR:-~/docker-data}/caddy/data:/data
+      - ${DATA_DIR:-~/docker-data}/caddy/config:/config
 
     networks:
       - proxy

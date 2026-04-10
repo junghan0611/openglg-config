@@ -1,0 +1,59 @@
+services:
+  mattermost:
+    image: mattermost/mattermost-team-edition:10.6
+    container_name: mattermost
+    restart: unless-stopped
+    depends_on:
+      mattermost-db:
+        condition: service_healthy
+
+    environment:
+      - MM_SQLSETTINGS_DRIVERNAME=postgres
+      - MM_SQLSETTINGS_DATASOURCE=postgres://mattermost:${POSTGRES_PASSWORD}@mattermost-db:5432/mattermost?sslmode=disable&connect_timeout=10
+      - MM_SERVICESETTINGS_SITEURL=https://${DOMAIN}/mattermost
+      - MM_SERVICESETTINGS_LISTENADDRESS=:8065
+      - MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS=mattermost
+      - MM_PLUGINSETTINGS_ENABLE=true
+      - MM_PLUGINSETTINGS_ENABLEUPLOADS=true
+      - TZ=Asia/Seoul
+
+    command: ["mattermost", "server"]
+
+    volumes:
+      - ${DATA_DIR:-~/docker-data}/mattermost/config:/mattermost/config
+      - ${DATA_DIR:-~/docker-data}/mattermost/data:/mattermost/data
+      - ${DATA_DIR:-~/docker-data}/mattermost/logs:/mattermost/logs
+      - ${DATA_DIR:-~/docker-data}/mattermost/plugins:/mattermost/plugins
+      - ${DATA_DIR:-~/docker-data}/mattermost/client-plugins:/mattermost/client/plugins
+
+    networks:
+      - mattermost-internal
+      - proxy
+
+  mattermost-db:
+    image: postgres:16-alpine
+    container_name: mattermost-db
+    restart: unless-stopped
+
+    environment:
+      - POSTGRES_USER=mattermost
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=mattermost
+
+    volumes:
+      - ${DATA_DIR:-~/docker-data}/mattermost/db:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mattermost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - mattermost-internal
+
+networks:
+  mattermost-internal:
+    driver: bridge
+  proxy:
+    external: true

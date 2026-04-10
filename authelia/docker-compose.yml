@@ -7,7 +7,7 @@ services:
     volumes:
       - ./configuration.yml:/config/configuration.yml:ro
       - ./users.yml:/config/users.yml:ro
-      - ${HOME}/docker-data/authelia:/data
+      - ${DATA_DIR:-~/docker-data}/authelia:/data
 
     environment:
       - TZ=Asia/Seoul

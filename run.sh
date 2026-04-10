@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 # Service startup order
 CORE_SERVICES=(caddy authelia postgres homer)
-APP_SERVICES=(metabase openclaw remark42 umami)
+APP_SERVICES=(metabase mattermost openclaw remark42 umami)
 
 up() {
   echo "=== Starting core services ==="
