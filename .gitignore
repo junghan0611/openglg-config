@@ -5,3 +5,4 @@ backup/
 *.log
 pomerium/config.yaml
 openclaw/config/openclaw.json
+caddy/Caddyfile

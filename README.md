@@ -116,25 +116,18 @@ openglg-config/            (this repo — compose files + config templates)
 └── umami/
 ```
 
-## Startup order
-
-```
-1. pomerium   ← creates the `proxy` network, must be first
-2. postgres   ← database, needed by metabase/mattermost
-3. homer      ← dashboard (no dependencies)
-4. everything else (any order)
-```
-
 ## Operations
 
 ```bash
-./scripts/status.sh       # all services status + disk
-./scripts/up.sh           # start all enabled services
-./scripts/restart.sh      # restart all
-./scripts/backup.sh       # backup databases + configs
-./scripts/logs.sh         # all logs
-./scripts/logs.sh metabase  # one service
+./run.sh up         # start all (core first, then apps)
+./run.sh down       # stop all
+./run.sh restart    # stop + start
+./run.sh status     # container status + disk
+./run.sh logs       # all logs (summary)
+./run.sh logs metabase  # follow one service
 ```
+
+Startup order is handled automatically: caddy/pomerium → postgres → homer → apps.
 
 ## Choosing your gateway
 

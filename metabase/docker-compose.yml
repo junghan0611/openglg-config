@@ -17,9 +17,7 @@ services:
     volumes:
       - ${HOME}/docker-data/metabase:/metabase-data
 
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # postgres must be running (started separately)
 
     networks:
       - proxy

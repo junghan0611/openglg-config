@@ -41,10 +41,20 @@ scripts/        init, up, status, restart, backup, logs
 - Each service has its own `.env.example` or `.template` with inline comments.
 - Startup order: pomerium → postgres → homer → everything else.
 
+## Operations
+
+```bash
+./run.sh up         # start all (core → apps)
+./run.sh down       # stop all
+./run.sh restart    # full restart
+./run.sh status     # container status + disk
+./run.sh logs       # summary or: ./run.sh logs <container>
+```
+
 ## Testing
 
 ```bash
-for d in pomerium homer postgres metabase openclaw remark42 umami; do
+for d in caddy homer postgres metabase openclaw remark42 umami; do
   (cd $d && docker compose config --quiet && echo "$d: OK") || echo "$d: FAIL"
 done
 ```
