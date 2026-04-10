@@ -1,4 +1,7 @@
 .env
+*/.env
 docker-data/
 backup/
 *.log
+pomerium/config.yaml
+openclaw/config/openclaw.json

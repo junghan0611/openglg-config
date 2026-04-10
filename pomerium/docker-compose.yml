@@ -1,0 +1,23 @@
+services:
+  pomerium:
+    image: cr.pomerium.com/pomerium/pomerium:latest
+    container_name: pomerium
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./config.yaml:/pomerium/config.yaml:ro
+
+    environment:
+      - POMERIUM_DEBUG=${POMERIUM_DEBUG:-false}
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: proxy
+    driver: bridge

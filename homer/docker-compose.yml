@@ -1,0 +1,15 @@
+services:
+  homer:
+    image: b4bz/homer:latest
+    container_name: homer
+    restart: unless-stopped
+
+    volumes:
+      - ./config.yml:/www/assets/config.yml:ro
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,59 @@
+# Pomerium configuration
+# Copy to config.yaml and fill in your values
+
+# Authentication
+authenticate_service_url: https://auth.DOMAIN
+
+idp_provider: google
+idp_client_id: YOUR_GOOGLE_CLIENT_ID
+idp_client_secret: YOUR_GOOGLE_CLIENT_SECRET
+
+# Cookie secret (generate: head -c32 /dev/urandom | base64)
+cookie_secret: GENERATE_ME
+shared_secret: GENERATE_ME
+signing_key: GENERATE_ME
+
+# Autocert (automatic Let's Encrypt)
+autocert: true
+autocert_email: you@example.com
+
+# Access policy — allow your domain's Google Workspace users
+policy:
+  # Homer dashboard
+  - from: https://DOMAIN
+    to: http://homer:8080
+    allowed_domains:
+      - ALLOWED_DOMAIN
+
+  # Metabase
+  - from: https://metabase.DOMAIN
+    to: http://metabase:3000
+    allowed_domains:
+      - ALLOWED_DOMAIN
+
+  # Digital garden (public, no auth)
+  - from: https://garden.DOMAIN
+    to: http://caddy-garden:80
+    allow_public_unauthenticated_access: true
+
+  # Comments (public)
+  - from: https://comments.DOMAIN
+    to: http://remark42:8080
+    allow_public_unauthenticated_access: true
+
+  # Analytics (public dashboard, admin needs auth)
+  - from: https://analytics.DOMAIN
+    to: http://umami:3000
+    allow_public_unauthenticated_access: true
+
+  # OpenClaw (authenticated)
+  - from: https://ai.DOMAIN
+    to: http://openclaw-gateway:18789
+    allowed_domains:
+      - ALLOWED_DOMAIN
+
+  # Mattermost (authenticated)
+  # - from: https://chat.DOMAIN
+  #   to: http://mattermost:8065
+  #   allowed_domains:
+  #     - ALLOWED_DOMAIN
