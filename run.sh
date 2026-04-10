@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # Service startup order
-CORE_SERVICES=(caddy postgres homer)
+CORE_SERVICES=(caddy authelia postgres homer)
 APP_SERVICES=(metabase openclaw remark42 umami)
 
 up() {

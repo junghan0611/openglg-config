@@ -12,6 +12,9 @@ services:
       - MB_DB_PASS=${METABASE_DB_PASSWORD}
       - MB_DB_HOST=postgres
       - MB_ENCRYPTION_SECRET_KEY=${METABASE_SECRET_KEY}
+      - MB_SITE_URL=https://${DOMAIN}/metabase
+      - MB_ENABLE_PUBLIC_SHARING=true
+      - MB_ENABLE_EMBEDDING=true
       - JAVA_OPTS=-Xms512m -Xmx2g
 
     volumes:

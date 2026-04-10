@@ -6,3 +6,6 @@ backup/
 pomerium/config.yaml
 openclaw/config/openclaw.json
 caddy/Caddyfile
+authelia/configuration.yml
+authelia/users.yml
+homer/config.yml

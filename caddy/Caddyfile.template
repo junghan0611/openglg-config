@@ -1,19 +1,66 @@
-# === Caddy 리버스 프록시 설정 ===
-# 이 파일을 Caddyfile로 복사 후 도메인을 수정하세요.
+# Caddy + Authelia (path 기반 라우팅)
+# Copy to Caddyfile and replace DOMAIN with your domain
 # cp Caddyfile.template Caddyfile
 
-# 디지털 가든 (Quartz 정적 사이트)
-garden.example.com {
-    root * /srv/quartz
-    file_server
+(authelia) {
+	forward_auth authelia:9091 {
+		uri /authelia/api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Email Remote-Name
+	}
 }
 
-# Remark42 댓글
-comments.example.com {
-    reverse_proxy remark42:8080
-}
+DOMAIN {
 
-# Umami 웹 분석
-analytics.example.com {
-    reverse_proxy umami:3000
+	# === Authelia portal + API ===
+	handle /authelia/* {
+		reverse_proxy authelia:9091
+	}
+	handle /authelia {
+		redir /authelia/ 302
+	}
+
+	# === 공개 서비스 (인증 불필요) ===
+
+	# / → Homer 대시보드
+	@homer path / /assets/* /icons/* /manifest.json /logo.png /resources/*
+	handle @homer {
+		reverse_proxy homer:8080
+	}
+
+	# /remark42 → Remark42 댓글
+	handle_path /remark42/* {
+		reverse_proxy remark42:8080
+	}
+
+	# /umami → Umami analytics
+	handle_path /umami/* {
+		reverse_proxy umami:3000
+	}
+
+	# === 인증 필요 서비스 ===
+	# route로 forward_auth → strip → proxy 순서 보장
+
+	# /metabase → Metabase
+	handle /metabase/* {
+		route {
+			import authelia
+			uri strip_prefix /metabase
+			reverse_proxy metabase:3000
+		}
+	}
+
+	# /openclaw → OpenClaw AI
+	handle /openclaw/* {
+		route {
+			import authelia
+			uri strip_prefix /openclaw
+			reverse_proxy openclaw-gateway:18789
+		}
+	}
+
+	# 기본: 인증 필요
+	handle {
+		import authelia
+		reverse_proxy homer:8080
+	}
 }

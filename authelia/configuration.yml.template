@@ -1,0 +1,71 @@
+---
+# Authelia configuration
+# Copy to configuration.yml and fill in secrets
+# cp configuration.yml.template configuration.yml
+
+server:
+  address: 'tcp://:9091/authelia'
+
+log:
+  level: info
+
+identity_validation:
+  reset_password:
+    jwt_secret: 'GENERATE: head -c32 /dev/urandom | base64'
+
+authentication_backend:
+  file:
+    path: /config/users.yml
+
+session:
+  secret: 'GENERATE: head -c32 /dev/urandom | base64'
+  cookies:
+    - domain: 'DOMAIN'
+      authelia_url: 'https://DOMAIN/authelia'
+      default_redirection_url: 'https://DOMAIN'
+
+storage:
+  encryption_key: 'GENERATE: head -c32 /dev/urandom | base64'
+  local:
+    path: /data/db.sqlite3
+
+notifier:
+  filesystem:
+    filename: /data/notification.txt
+
+access_control:
+  default_policy: deny
+  rules:
+    # Authelia 자체 경로는 bypass
+    - domain: 'DOMAIN'
+      resources: ['^/authelia([/?].*)?$']
+      policy: bypass
+
+    # Homer 대시보드 — 공개
+    - domain: 'DOMAIN'
+      resources: ['^/$', '^/(assets|icons)([/?].*)?$']
+      policy: bypass
+
+    # Metabase — 인증 필요
+    - domain: 'DOMAIN'
+      resources: ['^/metabase([/?].*)?$']
+      policy: one_factor
+
+    # Remark42 — 공개 (댓글 시스템)
+    - domain: 'DOMAIN'
+      resources: ['^/remark42([/?].*)?$']
+      policy: bypass
+
+    # Umami — 공개 (analytics)
+    - domain: 'DOMAIN'
+      resources: ['^/umami([/?].*)?$']
+      policy: bypass
+
+    # OpenClaw — 인증 필요
+    - domain: 'DOMAIN'
+      resources: ['^/openclaw([/?].*)?$']
+      policy: one_factor
+
+    # 나머지 전부 인증 필요
+    - domain: 'DOMAIN'
+      policy: one_factor

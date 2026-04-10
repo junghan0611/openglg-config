@@ -2,20 +2,19 @@
 
 An authenticated self-hosted work surface — your services, your data, your rules.
 
-Publish a digital garden, analyze data, chat with your team, and run AI agents.
-All behind a single identity-aware gateway. One server, Docker Compose, zero vendor lock-in.
+Publish a digital garden, analyze data, and run AI agents.
+All behind Caddy + Authelia with path-based routing. One server, one domain, Docker Compose, zero vendor lock-in.
 
 ## What this gives you
 
 | Layer | Service | What it does |
 |-------|---------|-------------|
-| **Gateway** | [Pomerium](https://pomerium.com) | Identity-aware reverse proxy + auto HTTPS (Google/GitHub OAuth) |
+| **Gateway** | [Caddy](https://caddyserver.com) + [Authelia](https://authelia.com) | Reverse proxy + auto HTTPS + authentication |
 | **Dashboard** | [Homer](https://github.com/bastienwirtz/homer) | Service index page |
 | **Knowledge** | [Quartz](https://quartz.jzhao.xyz) | Obsidian vault → digital garden |
 | | [Remark42](https://remark42.com) | Self-hosted comments |
 | | [Umami](https://umami.is) | Privacy-friendly web analytics |
 | **Work** | [Metabase](https://metabase.com) | Business intelligence / SQL dashboards |
-| | [Mattermost](https://mattermost.com) | Team chat (Slack alternative) |
 | **AI** | [OpenClaw](https://openclaw.org) | AI agent gateway (Telegram, web) |
 | **Data** | [PostgreSQL](https://postgresql.org) | Shared database (pgvector enabled) |
 
@@ -27,26 +26,37 @@ Enable what you need. Disable what you don't. Each service is one `docker compos
                         Internet
                            │
                     ┌──────▼──────┐
-                    │  Pomerium   │  ← :443 (auto HTTPS + OAuth)
-                    │  (gateway)  │
+                    │    Caddy    │  ← :443 (auto HTTPS)
                     └──────┬──────┘
-                           │ proxy network
-          ┌────────┬───────┼───────┬─────────┬──────────┐
-          ▼        ▼       ▼       ▼         ▼          ▼
-       Homer   Metabase  Quartz  Remark42  OpenClaw  Mattermost
-                  │                                     │
-                  └──────── PostgreSQL ─────────────────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Authelia   │  ← forward_auth (login portal)
+                    └──────┬──────┘
+                           │ proxy network (path-based routing)
+          ┌────────┬───────┼───────┬─────────┐
+          ▼        ▼       ▼       ▼         ▼
+       Homer   Metabase  Remark42  Umami   OpenClaw
+       (/)     (/metabase) (/remark42) (/umami) (/openclaw)
+                  │
+                  └──────── PostgreSQL ──────┘
 ```
 
-Public services (garden, comments, analytics) can bypass authentication.
-Internal services (metabase, AI, chat) require Google/GitHub OAuth.
+**Path-based routing** — no wildcard DNS needed. Single A record for your domain.
+
+| Path | Service | Auth |
+|------|---------|------|
+| `/` | Homer dashboard | public |
+| `/authelia/` | Login portal | — |
+| `/metabase/` | Metabase BI | required |
+| `/openclaw/` | OpenClaw AI | required |
+| `/remark42/` | Remark42 comments | public |
+| `/umami/` | Umami analytics | public |
 
 ## Requirements
 
 - **A server** — any VPS, cloud VM, or bare metal with a public IP
-- **1 domain** — with DNS A records pointing to your server
+- **1 domain** — single A record pointing to your server
 - **Docker + Docker Compose** — that's it
-- **Google Cloud OAuth credentials** (for Pomerium authentication)
 
 No Kubernetes. No Terraform. No Nix. Just Docker Compose.
 
@@ -57,47 +67,36 @@ No Kubernetes. No Terraform. No Nix. Just Docker Compose.
 git clone https://github.com/junghan0611/openglg-config.git
 cd openglg-config
 
-# 2. Initial setup (Docker, firewall, directories)
+# 2. Initial setup
 ./scripts/init.sh
 
 # 3. Configure
-cp .env.example .env                              # ← fill in secrets
-cp pomerium/config.yaml.template pomerium/config.yaml  # ← fill in domains + OAuth
+cp .env.example .env                                     # fill in secrets
+cp caddy/Caddyfile.template caddy/Caddyfile              # replace DOMAIN
+cp authelia/configuration.yml.template authelia/configuration.yml  # fill in secrets + domain
+cp authelia/users.yml.template authelia/users.yml         # set user + password hash
+cp homer/config.yml.template homer/config.yml             # customize dashboard
 
-# 4. Start core services
-cd pomerium && docker compose up -d && cd ..   # gateway (must be first)
-cd postgres  && docker compose up -d && cd ..   # database
-cd homer     && docker compose up -d && cd ..   # dashboard
-
-# 5. Start what you need
-cd metabase  && docker compose up -d && cd ..   # BI dashboards
-cd openclaw  && docker compose up -d && cd ..   # AI agent
-cd remark42  && docker compose up -d && cd ..   # comments
-cd umami     && docker compose up -d && cd ..   # analytics
+# 4. Start everything
+./run.sh up
 ```
 
 ## DNS records
 
-Point your domain and subdomains to your server's public IP:
+Single A record is enough:
 
 ```
-A    example.com           → <server IP>    # Homer dashboard
-A    auth.example.com      → <server IP>    # Pomerium auth
-A    metabase.example.com  → <server IP>    # Metabase
-A    garden.example.com    → <server IP>    # Digital garden
-A    comments.example.com  → <server IP>    # Remark42
-A    analytics.example.com → <server IP>    # Umami
-A    ai.example.com        → <server IP>    # OpenClaw
-A    chat.example.com      → <server IP>    # Mattermost
+A    example.com → <server IP>
 ```
 
-Only create records for services you actually enable.
+All services are accessed via path prefix (e.g., `example.com/metabase/`).
 
 ## Directory layout
 
 ```
 openglg-config/            (this repo — compose files + config templates)
-├── pomerium/              gateway + authentication
+├── caddy/                 reverse proxy + auto HTTPS
+├── authelia/              authentication portal
 ├── homer/                 service dashboard
 ├── postgres/              shared database
 ├── metabase/              BI dashboards
@@ -105,13 +104,14 @@ openglg-config/            (this repo — compose files + config templates)
 ├── quartz/                digital garden builder
 ├── remark42/              comments
 ├── umami/                 web analytics
-├── mattermost/            team chat (coming soon)
-└── scripts/               init, up, status, backup
+├── scripts/               init, up, status, backup
+└── run.sh                 service manager
 
 ~/docker-data/             (persistent data, not in repo)
-├── postgres/
+├── authelia/
+├── caddy/
 ├── metabase/
-├── caddy/ or pomerium/
+├── postgres/
 ├── remark42/
 └── umami/
 ```
@@ -127,37 +127,63 @@ openglg-config/            (this repo — compose files + config templates)
 ./run.sh logs metabase  # follow one service
 ```
 
-Startup order is handled automatically: caddy/pomerium → postgres → homer → apps.
+Startup order: caddy → authelia → postgres → homer → apps.
 
-## Choosing your gateway
+## Docker image versions
 
-This repo ships with **Pomerium** (identity-aware proxy with OAuth).
+Pinned at deployment time. Record current versions for reproducibility.
 
-If you don't need authentication, the `caddy/` directory has a simpler
-Caddy-only setup. Swap `pomerium/` for `caddy/` — everything else stays the same.
+| Service | Image | Version (2026-04-10) |
+|---------|-------|---------------------|
+| Caddy | `caddy:2-alpine` | 2.10.0 |
+| Authelia | `authelia/authelia:latest` | 4.39.18 |
+| Homer | `b4bz/homer:latest` | 24.12.1 |
+| PostgreSQL | `pgvector/pgvector:pg16` | pg16 |
+| Metabase | `metabase/metabase:latest` | 0.54.5 |
+| Umami | `ghcr.io/umami-software/umami:postgresql-latest` | 2.16.0 |
 
-| | Pomerium | Caddy |
-|---|---------|-------|
-| HTTPS | auto (Let's Encrypt) | auto (Let's Encrypt) |
-| Authentication | Google/GitHub/OIDC OAuth | none (or basic auth) |
-| Use when | internal/team services | public-only services |
+> **Tip**: Pin to specific tags in production to avoid breaking changes on `docker pull`.
 
-## Coming from Oracle Free Tier?
+## Gateway
 
-The original version of this repo was Oracle ARM-specific.
-It now works on **any server** — x86 or ARM, any cloud or bare metal.
-Oracle Free Tier still works, but is no longer required.
+This repo uses **Caddy + Authelia** (path-based routing, file-based users).
+
+- Caddy handles HTTPS (auto Let's Encrypt) + reverse proxy
+- Authelia handles authentication via `forward_auth`
+- No OAuth/OIDC needed — simple username/password
+
+Alternative setups available in the repo:
+- `pomerium/` — identity-aware proxy with Google/GitHub OAuth (requires wildcard DNS)
+- `caddy/` alone — no authentication (public-only services)
 
 ## References
 
-- [Pomerium](https://pomerium.com) — Identity-aware access proxy
+- [Caddy](https://caddyserver.com) — Fast, extensible web server
+- [Authelia](https://authelia.com) — Authentication & authorization server
 - [Homer](https://github.com/bastienwirtz/homer) — Service dashboard
 - [Metabase](https://metabase.com) — Open source BI
 - [Quartz](https://quartz.jzhao.xyz) — Obsidian → static site
 - [Remark42](https://remark42.com) — Self-hosted comments
 - [Umami](https://umami.is) — Privacy web analytics
 - [OpenClaw](https://openclaw.org) — AI agent platform
-- [Mattermost](https://mattermost.com) — Self-hosted team chat
+
+## Changelog
+
+### v0.2.0 (2026-04-10)
+
+- **Gateway**: Pomerium → Caddy + Authelia (path-based routing, no wildcard DNS)
+- **Auth**: Authelia file-based user authentication with `forward_auth`
+- **Caddy**: `route` directive for correct forward_auth → strip → proxy ordering
+- **Metabase**: DB password fix, `MB_SITE_URL` for path prefix support
+- **Homer**: Path-based URLs (`/metabase/`, `/openclaw/`, etc.)
+- **Umami**: Added with dedicated PostgreSQL
+- **run.sh**: Added `authelia` to core services
+
+### v0.1.0 (2026-04-09)
+
+- Initial setup: Caddy, PostgreSQL, Homer, Metabase, OpenClaw
+- Docker Compose per-service structure
+- `run.sh` service manager
 
 ## License
 

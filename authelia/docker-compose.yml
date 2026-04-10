@@ -1,0 +1,23 @@
+services:
+  authelia:
+    image: authelia/authelia:latest
+    container_name: authelia
+    restart: unless-stopped
+
+    volumes:
+      - ./configuration.yml:/config/configuration.yml:ro
+      - ./users.yml:/config/users.yml:ro
+      - ${HOME}/docker-data/authelia:/data
+
+    environment:
+      - TZ=Asia/Seoul
+
+    expose:
+      - "9091"
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
