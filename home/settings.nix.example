@@ -1,0 +1,24 @@
+# Copy to settings.nix and edit. settings.nix is gitignored.
+#
+# Step 1 goal: verify Nix + home-manager switch works on AVF Debian.
+#
+# Username conventions per target:
+#   S26 AVF Debian     → "droid"     (system default, keep as-is for reproducibility)
+#   Ubuntu VPS / laptop → your login name
+#
+# Run `whoami` on the machine first if unsure.
+
+{
+  user = {
+    username = "droid";                # change per machine; "droid" on AVF Debian
+    fullName = "Alice Example";
+    email    = "alice@example.com";
+  };
+
+  # S26 AVF Debian VM = aarch64-linux
+  # Ubuntu VPS (x86)  = x86_64-linux
+  # Oracle A1 ARM     = aarch64-linux
+  system = "aarch64-linux";
+
+  stateVersion = "25.05";
+}
