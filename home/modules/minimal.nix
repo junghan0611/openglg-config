@@ -7,9 +7,9 @@
   programs.home-manager.enable = true;
 
   programs.git = {
-    enable    = true;
-    userName  = settings.user.fullName;
-    userEmail = settings.user.email;
+    enable = true;
+    settings.user.name  = settings.user.fullName;
+    settings.user.email = settings.user.email;
   };
 
   programs.gh = {

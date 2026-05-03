@@ -53,11 +53,25 @@ EOF
   exit 1
 fi
 
-# --- 4. home-manager switch ------------------------------------------------
-nix run \
-  --extra-experimental-features 'nix-command flakes' \
-  home-manager/release-25.11 -- \
-  switch --flake . -b backup
+# --- 4. home-manager build & activate (uses flake.lock) -------------------
+# flake.lock pins nixpkgs + home-manager. No more branch-alias drift.
+# If lock is missing (forked repo without lock), generate it once.
+if [ ! -f flake.lock ]; then
+  nix --extra-experimental-features 'nix-command flakes' flake lock
+fi
+
+# path: scheme — ignore .git tree-tracking. Bootstrap runs before git is on PATH;
+# nix would otherwise call `git` (provided by home-manager itself, chicken/egg).
+#
+# --max-jobs 1 --cores 1 → AVF aarch64 VM은 RAM 압박이 심해서 병렬 빌드 시
+# OOM 킬로 VM 자체가 다운된다. 느려도 살아있게 한다.
+nix --extra-experimental-features 'nix-command flakes' \
+  build "path:.#homeConfigurations.${USER}.activationPackage" \
+  --max-jobs 1 --cores 1
+
+# HOME_MANAGER_BACKUP_EXT=backup turns dotfile conflicts into .backup files
+# (Debian default ~/.bashrc would otherwise abort activation).
+HOME_MANAGER_BACKUP_EXT=backup ./result/activate
 
 echo
 echo "Done. Open a new shell; git/gh/rg/fd/bat should be on PATH."
