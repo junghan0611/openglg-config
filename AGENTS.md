@@ -2,18 +2,37 @@
 
 ## Project
 
-openglg-config — a reproducible single-fork work surface with two cooperating halves:
+openglg-config — a reproducible single-fork work surface, **companion to** [`junghan0611/nixos-config`](https://github.com/junghan0611/nixos-config) (mother repo: NixOS host config, OS-level reproducibility). This repo carries what doesn't depend on NixOS — the portable service stack and the portable shell layer.
+
+Two cooperating halves:
 
 1. **Server half** (top-level dirs) — an authenticated self-hosted platform.
    Caddy (gateway) + Authelia (auth) + Docker Compose: Homer, Metabase, OpenClaw,
    Quartz, Remark42, Umami, Mattermost, PostgreSQL.
-2. **Home half** (`home/`) — a Nix + home-manager flake that reproduces the operator's
-   shell and dev tools on any Debian/Ubuntu (including Android AVF Debian on S26),
-   starting from an absolute-minimum apt footprint and zero security keys.
+2. **Home half** (`home/` + parked `mobile/`) — a Nix + home-manager flake that reproduces the operator's
+   shell and dev tools on any Debian/Ubuntu (Oracle ARM / VPS / laptop), starting from an
+   absolute-minimum apt footprint and zero security keys. `mobile/` is an apt-only fallback
+   left in the tree for the AVF / phone case (currently parked — see Status below).
 
 The two halves are intentionally loosely coupled. Either can be used alone. They
 coexist in one repo so a solo operator (or a template-forker) has **one clone,
 one set of docs, one bootstrap story** covering "my server + my shell".
+
+## Status — Phone route parked (2026-05-06)
+
+- `home/` — works on Oracle ARM, x86_64 VPS, laptops. **Does not** work in the Galaxy S26 AVF Debian VM (OOM during nix eval/build).
+- `mobile/` — apt-only fallback bootstraps cleanly, but Android tears the VM down whenever the Terminal app drops to background, so the VM is not usable as a stable everyday environment.
+- Until AVF (or vendor OS policy) guarantees VM background persistence, **the phone route is on hold**. Both directories stay in tree as documented retry surfaces. See `mobile/README.md`'s retry checklist.
+
+## Mother repo (`nixos-config`)
+
+When the host itself is owned (not a rented VPS), the source of truth is the mother repo:
+
+- Host OS, kernel, system services, system-level home-manager, hardware specifics → `nixos-config`.
+- This repo's `home/` is intentionally a **subset** of what nixos-config does — it must work without NixOS, with three apt packages and Determinate Nix.
+- Backup of OpenClaw runtime (`~/openclaw/`) Docker definitions also lives in `nixos-config/docker/openclaw/`. This repo's `openclaw/` is the public template for Docker Compose deployment, decoupled from the Oracle SSOT.
+
+Operating principle: **don't duplicate state**. If a value belongs in the host OS, it belongs in `nixos-config`, not here.
 
 ## Structure
 
@@ -38,6 +57,12 @@ home/settings.nix.example   Template; settings.nix is gitignored
 home/modules/               home-manager modules (no hardcoded identity)
 home/bootstrap.sh           apt minimum → Nix install → switch
 home/README.md              Usage and Step 1 status
+
+mobile/         apt-only fallback for AVF Debian VM (parked)   [home/parked]
+mobile/apt-bootstrap.sh     Bootstraps apt deps + fnm/node/pnpm
+mobile/README.md            Why it exists, why it's parked, retry checklist
+
+MEMORY.md       Operator notes (tracked) — companion to nixos-config/MEMORY.md
 ```
 
 ## Rules — repo-wide
@@ -67,8 +92,13 @@ home/README.md              Usage and Step 1 status
   `curl`, `xz-utils`, `ca-certificates`. Anything else goes through Nix.
 - No SSH keys required to start. Public repo → anonymous HTTPS tarball clone. For push,
   users run `gh auth login` (device flow) **after** bootstrap.
-- `home/` targets aarch64-linux (S26 AVF Debian, Oracle A1 ARM) **and** x86_64-linux
+- `home/` targets aarch64-linux (Oracle A1 ARM and other cloud ARM) **and** x86_64-linux
   (Ubuntu VPS, laptops). The flake's `system` is driven by `settings.system`.
+  **Not** the S26 AVF VM — that target is parked under `mobile/`, see Status above.
+- `mobile/` is intentionally **not** a home-manager profile. It's the documented apt route
+  for the AVF/phone case. Don't try to merge it back into `home/` until the underlying
+  AVF/OS issues are resolved — the value of keeping it separate is that the boundary
+  is visible.
 - Step 1 (current): one `homeConfigurations.<settings.user.username>` with a minimal
   module (bash + git + gh + rg/fd/bat). Step 2+ (parked in linked llmlog note):
   profile split (`mobile` / `vps` / `workstation`), feature flags, language modules,

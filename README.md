@@ -111,16 +111,22 @@ Startup order: caddy → authelia → postgres → homer → apps.
 
 ## Home half
 
-A **Nix + home-manager** flake that reproduces your shell and dev tools on any Debian or Ubuntu — including the Android Linux Terminal (AVF Debian) on Galaxy S26.
+A **Nix + home-manager** flake that reproduces your shell and dev tools on any Debian or Ubuntu (Oracle ARM / VPS / laptop).
+
+> **Phone / Galaxy S26 AVF Debian VM — currently parked.** home-manager OOMs in the VM,
+> and the apt-only fallback in [`mobile/`](mobile/) does bootstrap, but Android tears down
+> the VM whenever the Terminal app drops to background, so the VM is not a usable everyday
+> environment yet. Phone route is on hold until AVF guarantees background persistence.
+> Use a real machine (Oracle ARM, VPS, laptop) for now.
 
 **Design pillars:**
 
 - **Apt minimum.** Exactly three apt packages: `curl`, `xz-utils`, `ca-certificates`. Everything else (git, gh, ripgrep, your editor, languages) comes through Nix.
 - **Zero security keys at start.** Public HTTPS tarball clone, no SSH key required. GitHub auth via `gh auth login` device flow only when you want to push.
 - **No hardcoded identity.** All personal values live in a single `home/settings.nix` file (gitignored). Fork the repo, edit one file, run one script.
-- **One bootstrap for phone / VPS / laptop.** Same flake, different `system` and profile.
+- **One bootstrap for VPS / laptop / cloud ARM.** Same flake, different `system` and profile.
 
-See [`home/README.md`](home/README.md) for the full walkthrough.
+See [`home/README.md`](home/README.md) for the full walkthrough, and [`mobile/README.md`](mobile/README.md) for the parked phone-route notes.
 
 ### Home quick start
 
@@ -173,12 +179,15 @@ openglg-config/
 ├── mattermost/            # server — team chat
 ├── scripts/               # server — init, up, status, backup
 ├── run.sh                 # server — service manager
-├── home/                  # home — Nix + home-manager
+├── home/                  # home — Nix + home-manager (Oracle ARM / VPS / laptop)
 │   ├── flake.nix
 │   ├── settings.nix.example   # copy to settings.nix (gitignored)
 │   ├── modules/minimal.nix
 │   ├── bootstrap.sh
 │   └── README.md
+├── mobile/                # parked — apt-only fallback for AVF Debian VM (phone)
+│   ├── apt-bootstrap.sh
+│   └── README.md          # see for current status (route on hold)
 └── README.md / AGENTS.md
 
 ~/docker-data/             # server persistent data (not in repo)
@@ -281,6 +290,17 @@ Alternative setups available in the repo:
 - `pomerium/` — identity-aware proxy with Google/GitHub OAuth (requires wildcard DNS)
 - `caddy/` alone — no authentication (public-only services)
 
+## Companion repos
+
+`openglg-config` is the **service + shell surface** that sits on top of a host. The host itself is owned by a separate repo:
+
+| Repo | Role | Path |
+|------|------|------|
+| [`junghan0611/nixos-config`](https://github.com/junghan0611/nixos-config) | **Mother repo** — declarative NixOS host configuration (Oracle ARM, NUC, laptops). Owns the OS, kernel, system services, system-level home-manager. Backup of OpenClaw runtime / Docker definitions. | `~/repos/gh/nixos-config/` |
+| `openglg-config` (this repo) | **Companion** — portable service stack (Docker Compose) + portable home-manager (`home/`) that can land on any Debian/Ubuntu host, including non-NixOS VPS. | `~/repos/gh/openglg-config/` |
+
+Use the mother repo when the host is yours and reproducibility starts at the OS. Use this repo when the host already exists (cloud VPS, somebody else's box, AVF VM) and you only get to bring your shell + services.
+
 ## References
 
 - [Caddy](https://caddyserver.com) — Fast, extensible web server
@@ -296,12 +316,18 @@ Alternative setups available in the repo:
 
 ## Changelog
 
+### v0.3.1 (2026-05-06)
+
+- **Phone route parked**: AVF Debian VM on Galaxy S26 verified unusable as everyday environment — `home/` route OOMs in the VM, `mobile/` apt fallback boots fine but Android tears the VM down on Terminal-app background. Documented in `mobile/README.md` + `home/README.md` + `MEMORY.md`. Route stays in tree for retry once AVF guarantees background persistence.
+- **Companion relationship documented**: explicit pairing with [`nixos-config`](https://github.com/junghan0611/nixos-config) (mother repo, owns the host) ↔ this repo (companion, owns the portable service + shell surface).
+- **`mobile/`**: new directory holding the apt-only fallback and its retry checklist. Targets: Oracle ARM, VPS, laptop (no phone).
+
 ### v0.3.0 (2026-04-19)
 
 - **Scope expansion**: repo now ships two halves — server (Docker Compose) **and** home (Nix + home-manager)
 - **`home/`**: Step 1 minimal PoC — `flake.nix`, `settings.nix.example`, `modules/minimal.nix`, `bootstrap.sh`
 - **Bootstrap**: apt minimum (curl, xz-utils, ca-certificates) → Determinate Nix installer → `home-manager switch`
-- **Targets**: Galaxy S26 AVF Debian VM (aarch64-linux), Ubuntu VPS (x86_64-linux), any Debian-family laptop
+- **Targets at the time**: Galaxy S26 AVF Debian VM (aarch64-linux), Ubuntu VPS (x86_64-linux), any Debian-family laptop. *S26 target later parked — see v0.3.1.*
 - **Zero-key start**: anonymous HTTPS tarball clone, no SSH key required; `gh auth login` device flow later
 - **Identity**: all personal values in single `home/settings.nix` (gitignored); no hardcoded usernames
 
