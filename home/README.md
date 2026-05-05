@@ -3,6 +3,13 @@
 Verify Nix + home-manager `switch` works on Debian/Ubuntu with the smallest
 possible apt footprint and **zero security keys**. Public HTTPS only.
 
+> **AVF Debian VM (폰) 예외 — 라우트 자체 보류 (2026-05-06)**:
+> 메모리 한계로 home-manager 빌드/eval이 OOM 킬됨 (S26에서 검증).
+> [`../mobile/`](../mobile/) apt 우회는 부트스트랩 자체는 되지만,
+> Terminal 앱이 백그라운드로 가면 Android가 VM을 정리해 세션이 끊긴다.
+> **폰 자체가 현재 상시 작업 환경으로 못 쓴다.** 이 home/ 흐름은
+> Oracle ARM / VPS / 노트북 등 RAM 충분한 머신에서만.
+
 Full design (server + client one-set, profiles, feature flags) lives in the
 linked llmlog note — not implemented here yet.
 
@@ -38,7 +45,10 @@ If these are on `$PATH` after `switch`, the pipe works.
 
 4. Pick a shell and stay in it. `sudo` may prompt for the password you just set.
 
-## Bootstrap flow — S26 AVF Debian (aarch64)
+## Bootstrap flow — Oracle ARM (aarch64) / 기타 aarch64 서버
+
+> AVF / 폰 라우트는 위 박스 사유로 **현재 보류**. 같은 aarch64라도 RAM 충분한
+> 클라우드 ARM VM에서는 그대로 동작한다 (1차 타겟).
 
 No git, no SSH keys. Anonymous HTTPS tarball.
 
@@ -49,8 +59,7 @@ cd openglg-config-main/home
 
 # 2. Personalize settings
 cp settings.nix.example settings.nix
-# edit: keep username = "droid"; set email; system = "aarch64-linux"
-# a minimal editor comes with Debian (nano) — or wait for Nix to install your choice
+# edit: user.username, user.email, system = "aarch64-linux"
 
 # 3. Run bootstrap
 ./bootstrap.sh
