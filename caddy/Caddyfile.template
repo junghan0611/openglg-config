@@ -58,6 +58,32 @@ DOMAIN {
 		}
 	}
 
+	# /mattermost API/WebSocket/hooks/plugins — Mattermost 자체 인증
+	# (모바일앱, 외부 webhook, 봇 API 가 Authelia 쿠키 없이 접근하려면 필요)
+	handle /mattermost/api/* {
+		reverse_proxy mattermost:8065
+	}
+	handle /mattermost/plugins/* {
+		reverse_proxy mattermost:8065
+	}
+	handle /mattermost/hooks/* {
+		reverse_proxy mattermost:8065
+	}
+	handle /mattermost/oauth/* {
+		reverse_proxy mattermost:8065
+	}
+
+	# /mattermost 웹 UI — Authelia 게이트 (SiteURL 에 prefix 포함, strip 불필요)
+	handle /mattermost/* {
+		route {
+			import authelia
+			reverse_proxy mattermost:8065
+		}
+	}
+	handle /mattermost {
+		redir /mattermost/ 302
+	}
+
 	# 기본: 인증 필요
 	handle {
 		import authelia
