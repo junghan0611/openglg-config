@@ -23,6 +23,9 @@ session:
     - domain: 'DOMAIN'
       authelia_url: 'https://DOMAIN/authelia'
       default_redirection_url: 'https://DOMAIN'
+      inactivity: '2 hours'
+      expiration: '8 hours'
+      remember_me: '1 month'
 
 storage:
   encryption_key: 'GENERATE: head -c32 /dev/urandom | base64'
@@ -64,6 +67,11 @@ access_control:
     # OpenClaw — 인증 필요
     - domain: 'DOMAIN'
       resources: ['^/openclaw([/?].*)?$']
+      policy: one_factor
+
+    # Mattermost — 인증 필요
+    - domain: 'DOMAIN'
+      resources: ['^/mattermost([/?].*)?$']
       policy: one_factor
 
     # 나머지 전부 인증 필요
