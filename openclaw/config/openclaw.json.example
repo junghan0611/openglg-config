@@ -2,34 +2,49 @@
   "agents": {
     "defaults": {
       "workspace": "/home/node/.openclaw/workspace",
-      "compaction": { "mode": "safeguard" },
-      "maxConcurrent": 2
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "maxConcurrent": 2,
+      "subagents": {
+        "maxConcurrent": 4
+      }
     },
     "list": [
       {
         "id": "main",
-        "model": "anthropic/claude-sonnet-4-6"
+        "model": "pi-shell-acp/gpt-5.4"
       }
     ]
   },
   "commands": {
-    "native": "auto"
+    "native": "auto",
+    "nativeSkills": "auto"
   },
   "channels": {
     "telegram": {
-      "enabled": true,
+      "enabled": false,
       "botToken": "<TELEGRAM_BOT_TOKEN>",
       "dmPolicy": "pairing",
       "streamMode": "partial",
       "accounts": {
         "default": {
-          "enabled": true,
+          "enabled": false,
           "botToken": "<TELEGRAM_BOT_TOKEN>",
           "dmPolicy": "pairing",
           "streamMode": "partial"
         }
       }
+    },
+    "mattermost": {
+      "enabled": false,
+      "botToken": "<MATTERMOST_BOT_TOKEN>",
+      "baseUrl": "<MATTERMOST_BASE_URL>",
+      "dmPolicy": "pairing"
     }
+  },
+  "session": {
+    "dmScope": "per-account-channel-peer"
   },
   "gateway": {
     "port": 18789,
@@ -38,6 +53,18 @@
     "auth": {
       "mode": "token",
       "token": "<GATEWAY_TOKEN>"
+    }
+  },
+  "plugins": {
+    "allow": ["pi-shell-acp"],
+    "entries": {
+      "pi-shell-acp": {
+        "enabled": true,
+        "config": {
+          "piBinaryPath": "pi",
+          "spawnTimeoutSeconds": 60
+        }
+      }
     }
   }
 }

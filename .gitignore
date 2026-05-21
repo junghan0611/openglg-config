@@ -4,7 +4,9 @@ docker-data/
 backup/
 *.log
 pomerium/config.yaml
-openclaw/config/openclaw.json
+openclaw/config/*
+!openclaw/config/*.example
+openclaw/workspace/
 caddy/Caddyfile
 authelia/configuration.yml
 authelia/users.yml

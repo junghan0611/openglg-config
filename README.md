@@ -29,7 +29,7 @@ Authenticated self-hosted platform behind **Caddy + Authelia** with path-based r
 | | [Remark42](https://remark42.com) | Self-hosted comments |
 | | [Umami](https://umami.is) | Privacy-friendly web analytics |
 | **Work** | [Metabase](https://metabase.com) | Business intelligence / SQL dashboards |
-| **AI** | [OpenClaw](https://openclaw.org) | AI agent gateway (Telegram, web) |
+| **AI** | [OpenClaw](https://openclaw.org) | AI agent gateway (Telegram, web) with a public-safe pi-shell-acp Docker template |
 | **Chat** | [Mattermost](https://mattermost.com) | Team messaging |
 | **Data** | [PostgreSQL](https://postgresql.org) | Shared database (pgvector enabled) |
 
@@ -172,7 +172,7 @@ openglg-config/
 ├── postgres/              # server — shared database
 ├── homer/                 # server — service dashboard
 ├── metabase/              # server — BI dashboards
-├── openclaw/              # server — AI agent
+├── openclaw/              # server — OpenClaw AI agent template
 ├── quartz/                # server — digital garden builder
 ├── remark42/              # server — comments
 ├── umami/                 # server — web analytics

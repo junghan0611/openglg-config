@@ -1,9 +1,36 @@
+x-openclaw-env: &openclaw-env
+  HOME: /home/node
+  TERM: xterm-256color
+  BROWSER: echo
+  # Sub-agent websocket on Docker bridge; keep gateway behind Caddy/Authelia.
+  OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: "1"
+  OPENCLAW_NO_RESPAWN: "1"
+  NODE_COMPILE_CACHE: /var/tmp/openclaw-compile-cache
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  # Consumer-side workaround for pi-shell-acp/OpenClaw Docker child skill PATH.
+  # These dirs exist when a mounted ~/.pi overlay contains pi-skills; harmless if empty.
+  PATH: /home/node/.pi/agent/claude-plugin/skills/bibcli:/home/node/.pi/agent/claude-plugin/skills/denotecli:/home/node/.pi/agent/claude-plugin/skills/dictcli:/home/node/.pi/agent/claude-plugin/skills/gitcli:/home/node/.pi/agent/claude-plugin/skills/gogcli:/home/node/.pi/agent/claude-plugin/skills/lifetract:/home/node/.pi/agent/claude-plugin/skills/semantic-memory:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  # Optional: bind-mount an Emacs server socket to /run/emacs/server before using emacs skills.
+  PI_EMACS_AGENT_SOCKET: ${PI_EMACS_AGENT_SOCKET:-/run/emacs/server}
+
+x-openclaw-volumes: &openclaw-volumes
+  # Public-safe defaults: runtime state and backend auth live in Docker named volumes.
+  - ./config:/home/node/.openclaw:rw
+  - openclaw-auth-profile-secrets:/home/node/.config/openclaw:rw
+  - openclaw-pi:/home/node/.pi:rw
+  - openclaw-claude:/home/node/.claude:rw
+  - openclaw-codex:/home/node/.codex:rw
+  - openclaw-gemini:/home/node/.gemini:rw
+  - openclaw-compile-cache:/var/tmp/openclaw-compile-cache:rw
+  # Optional local workspace mount; change HOST_WORKSPACE_PATH in .env if desired.
+  - ${HOST_WORKSPACE_PATH:-./workspace}:/home/node/workspace:rw
+
 services:
   openclaw-gateway:
     build:
       context: .
       dockerfile: Dockerfile
-    image: openclaw-custom:latest
+    image: openglg-openclaw:2026.5.18
     container_name: openclaw-gateway
     restart: unless-stopped
     init: true
@@ -14,33 +41,64 @@ services:
         max-size: "10m"
         max-file: "5"
 
-    # IPv6 비활성화 (Oracle Cloud fetch 실패 방지)
+    # Some small VPS/Oracle paths prefer IPv4 for external APIs.
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     dns:
       - 8.8.8.8
       - 8.8.4.4
 
-    # SSH 터널 전용 (외부 노출 안 함)
+    # Caddy proxies through the `proxy` network. Local bind is also useful for SSH tunnels.
     ports:
-      - "127.0.0.1:18789:18789"
+      - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
 
     env_file: .env
-
-    environment:
-      - HOME=/home/node
-      - TERM=xterm-256color
+    environment: *openclaw-env
 
     command: ["node", "openclaw.mjs", "gateway", "--bind", "lan", "--port", "18789"]
 
-    volumes:
-      - ./config:/home/node/.openclaw
-      # Obsidian vault (read-only)
-      - ${VAULT_PATH:-/home/ubuntu/vault}:/home/node/vault:ro
+    volumes: *openclaw-volumes
 
     networks:
+      - default
+      - proxy
+
+  # Operational helper: run one-off OpenClaw/pi/backend CLI commands in the same image.
+  # Examples:
+  #   docker compose run --rm openclaw-cli plugins list --json
+  #   docker compose run --rm --entrypoint sh openclaw-cli -lc 'pi --version && codex --version'
+  openclaw-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: openglg-openclaw:2026.5.18
+    container_name: openclaw-cli
+    profiles: ["cli"]
+    stdin_open: true
+    tty: true
+
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+    env_file: .env
+    environment: *openclaw-env
+    entrypoint: ["node", "openclaw.mjs"]
+    volumes: *openclaw-volumes
+    networks:
+      - default
       - proxy
 
 networks:
   proxy:
     external: true
+
+volumes:
+  openclaw-auth-profile-secrets:
+  openclaw-pi:
+  openclaw-claude:
+  openclaw-codex:
+  openclaw-gemini:
+  openclaw-compile-cache:
