@@ -1,6 +1,6 @@
 services:
   mattermost:
-    image: mattermost/mattermost-team-edition:10.6
+    image: mattermost/mattermost-team-edition:11.7.1
     container_name: mattermost
     restart: unless-stopped
     depends_on:
