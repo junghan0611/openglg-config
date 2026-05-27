@@ -69,6 +69,11 @@ access_control:
       resources: ['^/openclaw([/?].*)?$']
       policy: one_factor
 
+    # Forge (Forgejo) — 자체 인증 (web/API/git 모두 Forgejo 가 게이트)
+    - domain: 'DOMAIN'
+      resources: ['^/forge([/?].*)?$']
+      policy: bypass
+
     # Mattermost — 인증 필요
     - domain: 'DOMAIN'
       resources: ['^/mattermost([/?].*)?$']

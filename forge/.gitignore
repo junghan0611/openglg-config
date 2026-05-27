@@ -1,0 +1,3 @@
+# Defense-in-depth — secrets must never be committed.
+# Root .gitignore already covers .env; this file adds an explicit local guard.
+.env

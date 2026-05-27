@@ -58,6 +58,17 @@ DOMAIN {
 		}
 	}
 
+	# /forge → Forgejo (self-authenticated, Authelia bypass)
+	# Forgejo 는 자체 user/team/token 모델 — Authelia 쿠키 못 박는 git/API 클라이언트가
+	# 차단되면 안 됨. handle_path 로 prefix 를 strip 해서 Forgejo 는 root 로 받고,
+	# ROOT_URL 에 박힌 /forge/ 로 외부 URL 을 생성한다.
+	handle_path /forge/* {
+		reverse_proxy forge:3000
+	}
+	handle /forge {
+		redir /forge/ 302
+	}
+
 	# /mattermost API/WebSocket/hooks/plugins — Mattermost 자체 인증
 	# (모바일앱, 외부 webhook, 봇 API 가 Authelia 쿠키 없이 접근하려면 필요)
 	handle /mattermost/api/* {

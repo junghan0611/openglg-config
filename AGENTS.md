@@ -8,7 +8,7 @@ Two cooperating halves:
 
 1. **Server half** (top-level dirs) — an authenticated self-hosted platform.
    Caddy (gateway) + Authelia (auth) + Docker Compose: Homer, Metabase, OpenClaw,
-   Quartz, Remark42, Umami, Mattermost, PostgreSQL.
+   Quartz, Remark42, Umami, Mattermost, Forge (Forgejo), PostgreSQL.
 2. **Home half** (`home/` + parked `mobile/`) — a Nix + home-manager flake that reproduces the operator's
    shell and dev tools on any Debian/Ubuntu (Oracle ARM / VPS / laptop), starting from an
    absolute-minimum apt footprint and zero security keys. `mobile/` is an apt-only fallback
@@ -47,6 +47,7 @@ quartz/         Obsidian → static site                         [server]
 remark42/       Self-hosted comments                           [server]
 umami/          Web analytics (own PostgreSQL)                 [server]
 mattermost/     Team chat                                      [server]
+forge/          Forgejo — self-hosted git forge (Authelia bypass) [server]
 pomerium/       Alternative OAuth gateway (optional)           [server]
 scripts/        init, up, status, restart, backup, logs        [server]
 run.sh          Service manager                                [server]
@@ -113,6 +114,10 @@ MEMORY.md       Operator notes (tracked) — companion to nixos-config/MEMORY.md
   (`tcp://:9091/authelia`).
 - Public services (homer, remark42, umami): no auth.
 - Protected services (metabase, openclaw): `one_factor` auth via Authelia.
+- **Self-authenticated services (mattermost API, forge)**: Authelia bypass. The
+  service runs its own login/token system, so git, mobile apps, webhooks, and
+  external API clients can reach it without an Authelia cookie. Bypass is scoped
+  to a single path prefix; never widen it to `/`.
 
 ## Conventions
 
@@ -154,7 +159,7 @@ cd home && nix run home-manager/release-25.11 -- switch --flake . -b backup
 
 ```bash
 # Config validation
-for d in caddy authelia homer postgres metabase openclaw remark42 umami mattermost; do
+for d in caddy authelia homer postgres metabase openclaw remark42 umami mattermost forge; do
   (cd $d && docker compose config --quiet && echo "$d: OK") || echo "$d: FAIL"
 done
 
@@ -162,6 +167,8 @@ done
 curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/           # 200 (homer)
 curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/authelia/  # 200 (login)
 curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/metabase/  # 302 (auth redirect)
+curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/forge/     # 200 (Forgejo, self-auth)
+curl -s https://DOMAIN/forge/api/v1/version                      # {"version":"15.0.x"}
 ```
 
 ### Home (Step 1 smoke test)

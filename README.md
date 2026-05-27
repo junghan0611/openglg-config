@@ -12,7 +12,7 @@ This repo ships two cooperating stacks. Each half can be used independently.
 
 | Half | Lives in | Stack | Entry point | Used for |
 |------|----------|-------|-------------|----------|
-| **Server** | `caddy/`, `authelia/`, `postgres/`, `homer/`, `metabase/`, `openclaw/`, `remark42/`, `umami/`, `quartz/`, `mattermost/` | Docker Compose | `./run.sh up` | Hosting services behind an authenticated gateway |
+| **Server** | `caddy/`, `authelia/`, `postgres/`, `homer/`, `metabase/`, `openclaw/`, `remark42/`, `umami/`, `quartz/`, `mattermost/`, `forge/` | Docker Compose | `./run.sh up` | Hosting services behind an authenticated gateway |
 | **Home** | `home/` | Nix flake + home-manager | `home/bootstrap.sh` | Reproducing your shell / dev tools on any Debian or Ubuntu |
 
 **Why both in one repo.** A solo operator's work surface is rarely just a server, and rarely just a laptop shell. It's "the server at my domain + the shell I use to touch it." Shipping both halves as one fork means: one clone, one set of docs, one bootstrap story. Fork it, edit your config, run two commands.
@@ -31,6 +31,7 @@ Authenticated self-hosted platform behind **Caddy + Authelia** with path-based r
 | **Work** | [Metabase](https://metabase.com) | Business intelligence / SQL dashboards |
 | **AI** | [OpenClaw](https://openclaw.org) | AI agent gateway (Telegram, web) with a public-safe pi-shell-acp Docker template |
 | **Chat** | [Mattermost](https://mattermost.com) | Team messaging |
+| **Code** | [Forgejo](https://forgejo.org) | Self-hosted git forge — issues, PRs, labels, webhooks. Operator companion: [`forge-config`](https://github.com/junghan0611/forge-config) |
 | **Data** | [PostgreSQL](https://postgresql.org) | Shared database (pgvector enabled) |
 
 Enable what you need. Disable what you don't. Each service is one `docker compose up -d`.
@@ -66,6 +67,8 @@ Enable what you need. Disable what you don't. Each service is one `docker compos
 | `/openclaw/` | OpenClaw AI | required |
 | `/remark42/` | Remark42 comments | public |
 | `/umami/` | Umami analytics | public |
+| `/mattermost/` | Mattermost (web UI) | required; API/git surface bypasses Authelia |
+| `/forge/` | Forgejo | Forgejo self-auth (Authelia bypass) |
 
 ### Server quick start
 
@@ -177,6 +180,7 @@ openglg-config/
 ├── remark42/              # server — comments
 ├── umami/                 # server — web analytics
 ├── mattermost/            # server — team chat
+├── forge/                 # server — Forgejo (operator companion: forge-config)
 ├── scripts/               # server — init, up, status, backup
 ├── run.sh                 # server — service manager
 ├── home/                  # home — Nix + home-manager (Oracle ARM / VPS / laptop)
@@ -215,6 +219,7 @@ Pinned at deployment time. Record current versions for reproducibility.
 | PostgreSQL | `pgvector/pgvector:pg16` | pg16 |
 | Metabase | `metabase/metabase:latest` | 0.54.5 |
 | Umami | `ghcr.io/umami-software/umami:postgresql-latest` | 2.16.0 |
+| Forgejo | `codeberg.org/forgejo/forgejo:15` | 15.x LTS |
 
 > Pin to specific tags in production to avoid breaking changes on `docker pull`.
 
@@ -298,6 +303,7 @@ Alternative setups available in the repo:
 |------|------|------|
 | [`junghan0611/nixos-config`](https://github.com/junghan0611/nixos-config) | **Mother repo** — declarative NixOS host configuration (Oracle ARM, NUC, laptops). Owns the OS, kernel, system services, system-level home-manager. Backup of OpenClaw runtime / Docker definitions. | `~/repos/gh/nixos-config/` |
 | `openglg-config` (this repo) | **Companion** — portable service stack (Docker Compose) + portable home-manager (`home/`) that can land on any Debian/Ubuntu host, including non-NixOS VPS. | `~/repos/gh/openglg-config/` |
+| [`junghan0611/forge-config`](https://github.com/junghan0611/forge-config) | **Operator companion for `forge/`** — the agent / bot surface that drives the Forgejo instance this repo provisions. Holds the `bin/forge` CLI, the label protocol, the bot footer convention, and the policies an operator (or sibling agent) follows when working on issues/PRs inside Forgejo. Infra lives here; operator workflow lives there. | `~/repos/gh/forge-config/` |
 
 Use the mother repo when the host is yours and reproducibility starts at the OS. Use this repo when the host already exists (cloud VPS, somebody else's box, AVF VM) and you only get to bring your shell + services.
 
@@ -315,6 +321,21 @@ Use the mother repo when the host is yours and reproducibility starts at the OS.
 - [Determinate Nix Installer](https://install.determinate.systems/) — used in `home/bootstrap.sh`
 
 ## Changelog
+
+### v0.4.0 (2026-05-27)
+
+- **Forge service added**: `forge/` ships a Forgejo 15 + PostgreSQL 16 stack on
+  the same Caddy gateway, routed at `${DOMAIN}/forge/` with path-based prefix
+  stripping. Forgejo runs self-authenticated (its own user / team / token
+  model), so Authelia is **bypassed** for `/forge/*`; the policy is identical
+  to Mattermost's API surface and keeps git, mobile clients, webhooks, and bot
+  tokens reachable. Closed instance — `DISABLE_REGISTRATION=true`, SSH off.
+- **Companion repo**: operator-facing skill + bot CLI lives in
+  [`junghan0611/forge-config`](https://github.com/junghan0611/forge-config).
+- **Gotchas captured** (in `forge/README.md`): never set `INSTALL_LOCK` via env
+  (causes crash loop after wizard); Forgejo tokens require `write:user` where
+  GitHub would not; Caddy's bind-mounted `Caddyfile` is inode-sensitive — fall
+  back to `docker compose restart caddy` if `caddy reload` looks stuck.
 
 ### v0.3.1 (2026-05-06)
 
