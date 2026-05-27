@@ -37,6 +37,13 @@ openssl rand -base64 32 | tr -d '/+=' | head -c 32
 # → paste into FORGE_DB_PASSWORD= in .env
 ```
 
+> **Big-disk hosts.** If your home partition is small and a separate data
+> volume is mounted elsewhere (a dedicated `/data`, `/var/lib/openglg`,
+> attached storage, …), set `DATA_DIR=<path>` in `forge/.env`. Both the
+> Forgejo data dir and the Postgres `pgdata` will land under
+> `${DATA_DIR}/forge/data` and `${DATA_DIR}/forge-db/pgdata`. Git
+> repositories grow over time — keep them off the root partition.
+
 Add the Caddy route (already in `caddy/Caddyfile.template`) and the Authelia
 bypass rule (already in `authelia/configuration.yml.template`). If you are
 upgrading an existing deployment, sync those template changes into your live
