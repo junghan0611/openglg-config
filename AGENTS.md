@@ -118,6 +118,12 @@ MEMORY.md       Operator notes (tracked) — companion to nixos-config/MEMORY.md
   service runs its own login/token system, so git, mobile apps, webhooks, and
   external API clients can reach it without an Authelia cookie. Bypass is scoped
   to a single path prefix; never widen it to `/`.
+- **External webhook receivers**: bypass Authelia only on the **exact path** the
+  external service posts to, not on a wildcard. Example:
+  `handle /openclaw/hooks/forgejo` is OK; `handle /openclaw/hooks/*` is **not** —
+  the wildcard would also expose `/openclaw/hooks/agent` (a direct-agent endpoint
+  that can fall back to a default agent if `agentId` is omitted), widening the
+  blast radius on token leak. One exact path per webhook source.
 
 ## Conventions
 

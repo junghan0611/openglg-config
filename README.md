@@ -64,7 +64,7 @@ Enable what you need. Disable what you don't. Each service is one `docker compos
 | `/` | Homer dashboard | public |
 | `/authelia/` | Login portal | — |
 | `/metabase/` | Metabase BI | required |
-| `/openclaw/` | OpenClaw AI | required |
+| `/openclaw/` | OpenClaw AI | required; `/openclaw/hooks/forgejo` bypasses Authelia for Forgejo webhooks |
 | `/remark42/` | Remark42 comments | public |
 | `/umami/` | Umami analytics | public |
 | `/mattermost/` | Mattermost (web UI) | required; API/git surface bypasses Authelia |
@@ -321,6 +321,20 @@ Use the mother repo when the host is yours and reproducibility starts at the OS.
 - [Determinate Nix Installer](https://install.determinate.systems/) — used in `home/bootstrap.sh`
 
 ## Changelog
+
+### v0.4.1 (2026-05-27)
+
+- **OpenClaw Forgejo webhook bypass**: `/openclaw/hooks/forgejo` now bypasses
+  Authelia so Forgejo can deliver webhooks without an Authelia session. OpenClaw
+  verifies its own `hooks.token`. The bypass is an **exact path**, not a wildcard
+  — broader `/openclaw/hooks/*` remains behind Authelia to avoid exposing
+  `/openclaw/hooks/agent` (direct-agent endpoint). Applied to both
+  `caddy/Caddyfile` and `caddy/Caddyfile.template`.
+- **Idempotency header translation**: Caddy rewrites Forgejo's `X-Forgejo-Delivery`
+  into a source-agnostic `X-OpenClaw-Idempotency-Key` header on its way to
+  OpenClaw, so the same idempotency contract works for future webhook sources
+  (GitHub `X-GitHub-Delivery`, GitLab `X-Gitlab-Event-UUID`) without OpenClaw
+  needing to know each provider's header name.
 
 ### v0.4.0 (2026-05-27)
 

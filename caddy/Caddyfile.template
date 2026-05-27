@@ -49,6 +49,20 @@ DOMAIN {
 		}
 	}
 
+	# /openclaw/hooks/forgejo — Forgejo webhook receiver (Authelia bypass, EXACT PATH)
+	# OpenClaw verifies its own hooks.token; Forgejo cannot present an Authelia cookie.
+	# Must stay an exact path: broader /openclaw/hooks/* would expose
+	# /openclaw/hooks/agent (direct-agent endpoint that can fall back to a default
+	# agent if agentId is omitted), widening the blast radius on token leak.
+	handle /openclaw/hooks/forgejo {
+		route {
+			uri strip_prefix /openclaw
+			reverse_proxy openclaw-gateway:18789 {
+				header_up X-OpenClaw-Idempotency-Key {http.request.header.X-Forgejo-Delivery}
+			}
+		}
+	}
+
 	# /openclaw → OpenClaw AI
 	handle /openclaw/* {
 		route {
