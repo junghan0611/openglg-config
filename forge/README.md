@@ -180,6 +180,26 @@ Caddy bind-mounts `Caddyfile` as a single file, which is sensitive to inode
 swaps (e.g. editor atomic-write). If `caddy reload` does not pick up changes,
 `docker compose restart caddy` always works.
 
+**Outbound webhook delivery fails: "webhook can only call allowed HTTP servers"**
+Forgejo blocks outbound webhook delivery to any host outside
+`[webhook] ALLOWED_HOST_LIST`. The default `private,loopback` covers internal
+addresses but **not** your public hostname — even when the webhook target is
+just `${DOMAIN}/openclaw/hooks/...` (which immediately bounces back into the
+same Caddy gateway), Forgejo resolves `${DOMAIN}` to a public IP first and
+refuses. Symptom in `docker compose logs forge`:
+```
+Unable to deliver webhook task[N] ... webhook can only call allowed HTTP
+servers (check your webhook.ALLOWED_HOST_LIST setting),
+deny '<your-domain>(<public IP>:443)'
+```
+Fix: this compose file already adds `${DOMAIN}` to the allow-list. If you
+forked and added more self-hosted receivers under the same domain, no further
+change is needed. To allow a **different** domain (a sibling host, a mirror),
+extend `FORGEJO__webhook__ALLOWED_HOST_LIST` with that exact hostname — never
+widen to `external` unless you really mean "any host on the internet."
+Apply with `docker compose up -d forge` (env changes require recreate, not
+`restart`).
+
 ## Security posture
 
 - Closed instance — only the admin can create users.
@@ -187,5 +207,9 @@ swaps (e.g. editor atomic-write). If `caddy reload` does not pick up changes,
 - Authelia bypass is intentional and limited to `/forge/*`. Forgejo enforces
   its own auth on every request; the `/api/v1/*` endpoints require a token.
 - Token scopes follow least-privilege; `admin:*` is never granted to bots.
+- Outbound webhook delivery is restricted to `private,loopback,${DOMAIN}` —
+  Forgejo can post to internal services and back into the operator's own host
+  (e.g. `/openclaw/hooks/forgejo`), but not to arbitrary external endpoints.
+  Add specific hostnames if you need cross-host delivery; never use `external`.
 - All secrets stay in `forge/.env` (gitignored) or the host's `~/.env.local`.
   This repo only ships `.env.example` and the compose template.

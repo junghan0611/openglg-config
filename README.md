@@ -335,6 +335,12 @@ Use the mother repo when the host is yours and reproducibility starts at the OS.
   OpenClaw, so the same idempotency contract works for future webhook sources
   (GitHub `X-GitHub-Delivery`, GitLab `X-Gitlab-Event-UUID`) without OpenClaw
   needing to know each provider's header name.
+- **Forgejo webhook allow-list**: `forge/docker-compose.yml` now sets
+  `FORGEJO__webhook__ALLOWED_HOST_LIST=private,loopback,${DOMAIN}`. The default
+  `private,loopback` blocked outbound delivery to `${DOMAIN}/openclaw/hooks/...`
+  (Forgejo resolves the operator's own hostname to a public IP and refuses).
+  Adding the exact hostname keeps the allow-list as narrow as possible. See
+  `forge/README.md` Troubleshooting for the symptom signature.
 
 ### v0.4.0 (2026-05-27)
 

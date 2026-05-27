@@ -74,8 +74,16 @@ services:
       - FORGEJO__openid__ENABLE_OPENID_SIGNIN=false
       - FORGEJO__openid__ENABLE_OPENID_SIGNUP=false
 
-      # Webhook — only allow internal endpoints for v1; extend explicitly if needed.
-      - FORGEJO__webhook__ALLOWED_HOST_LIST=private,loopback
+      # Webhook — Forgejo blocks outbound webhook delivery to any host not on
+      # this list. `private,loopback` cover internal endpoints (Caddy bridge IP,
+      # 127.0.0.1, etc.) but NOT the public hostname — even though traffic to
+      # ${DOMAIN}/openclaw/hooks/forgejo immediately bounces back into the Caddy
+      # network, Forgejo resolves ${DOMAIN} to a public IP first and refuses.
+      # Add the operator's exact hostname so OpenClaw (and any other self-hosted
+      # webhook receiver under the same domain) can be reached. Keep the list
+      # narrow — do NOT use `external` unless you really mean "any host on the
+      # internet."
+      - FORGEJO__webhook__ALLOWED_HOST_LIST=private,loopback,${DOMAIN}
 
       # Security note:
       # Do NOT set INSTALL_LOCK here. Wizard writes it to app.ini on first boot;
