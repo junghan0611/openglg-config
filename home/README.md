@@ -1,54 +1,47 @@
-# home/ — Step 1 (minimal PoC)
+# home/ — modular home-manager for Debian/Ubuntu
 
-Verify Nix + home-manager `switch` works on Debian/Ubuntu with the smallest
-possible apt footprint and **zero security keys**. Public HTTPS only.
+Reproduce the operator's shell and dev tools on any Debian/Ubuntu host
+(Oracle ARM, VPS, laptop, ...) with the smallest possible apt footprint and
+**zero security keys** at start. Public HTTPS only.
 
-> **AVF Debian VM (폰) 예외 — 라우트 자체 보류 (2026-05-06)**:
-> 메모리 한계로 home-manager 빌드/eval이 OOM 킬됨 (S26에서 검증).
-> [`../mobile/`](../mobile/) apt 우회는 부트스트랩 자체는 되지만,
-> Terminal 앱이 백그라운드로 가면 Android가 VM을 정리해 세션이 끊긴다.
-> **폰 자체가 현재 상시 작업 환경으로 못 쓴다.** 이 home/ 흐름은
-> Oracle ARM / VPS / 노트북 등 RAM 충분한 머신에서만.
+> **AVF Debian VM (phone) — parked (2026-05-06)**:
+> home-manager builds OOM in the S26 AVF VM, and the apt fallback in
+> [`../mobile/`](../mobile/) boots cleanly but Android tears the VM down
+> whenever the Terminal app drops to background. **The phone is not a viable
+> everyday environment.** This `home/` flow targets RAM-comfortable hosts
+> (Oracle ARM, x86 VPS, laptop) for now.
 
-Full design (server + client one-set, profiles, feature flags) lives in the
-linked llmlog note — not implemented here yet.
+## What gets installed
 
-## What installs via apt
+### Baseline — `modules/minimal.nix` (always on)
 
-Three packages, all `--no-install-recommends`:
-
-- `curl`
-- `xz-utils`
-- `ca-certificates`
-
-That's it. No `git` via apt — we pull the repo as a tarball, and Nix brings its
-own `git` after bootstrap.
-
-## What home-manager installs (smoke test)
+Loaded regardless of feature flags so a freshly bootstrapped machine has a
+working shell even with everything else turned off:
 
 - `bash` with completion
-- `git` (with `user.name` / `user.email` from `settings.nix`)
+- `git` with `user.name` / `user.email` from `settings.nix`
 - `gh` (GitHub CLI — for later `gh auth login` device flow)
 - `ripgrep`, `fd`, `bat`
 
-If these are on `$PATH` after `switch`, the pipe works.
+### Optional modules — `settings.features.*`
 
-## Prerequisites (one-time, on the phone)
+Toggle in `settings.nix`. Everything defaults to **off**.
 
-1. **Enable Linux Terminal**: Settings → Developer options → Linux dev environment.
-2. **Open Terminal app** → Debian VM initializes (first run takes a few minutes).
-3. **Set the `droid` password** (default user is `droid`, password blank/unknown):
+| Flag | Module | What it adds |
+|------|--------|--------------|
+| `shell` | `modules/shell.nix` | bash aliases, prompt, FZF + atuin + zoxide + direnv, `e()`/`v()`/`ec()` emacsclient wrappers with 24-bit color autodetect |
+| `git` | `modules/git.nix` | git aliases (co/ci/st/br/prettylog), `delta` diff viewer, LFS, `init.defaultBranch=main`, `pull.rebase`, `merge.conflictstyle=zdiff3` |
+| `cli` | `modules/cli.nix` | neovim + eza, jq, yq, lazygit, tokei, ncdu, duf, htop/btop, procs, miller, htmlq, mtr/nmap/iftop, yt-dlp/ffmpeg, ... |
+| `tmux` | `modules/tmux.nix` | tmux (256-color, OSC-52 clipboard, vi keys, vim-style pane nav) + zellij with dracula theme |
+| `emacs` | `modules/emacs.nix` | `emacs-nox` + vterm + spell (aspell, hunspell w/ Korean), grammar (languagetool), mail (mu, isync, notmuch, afew), pandoc + imagemagick + TeX Live scheme-medium |
+| `gpg` | `modules/gpg.nix` | `gpg` + `gpg-agent` (curses pinentry), `pass` with pass-otp, optional `~/.authinfo.gpg` symlink (see `settings.authInfoSource`) |
+| `syncthing` | `modules/syncthing.nix` | per-user `services.syncthing` bound to 127.0.0.1:8384, plus `stc-cli` and an `stc` alias |
+| `languages` | `modules/languages.nix` | Node.js 22 + pnpm + bun, Python 3.12 (jupyter/pandas), Go + gopls, Zig + zls, Clojure + clojure-lsp, Nix LSPs, gitleaks, C/C++ toolchain |
 
-   ```bash
-   sudo passwd droid
-   ```
+Modules use `lib.mkIf` internally, so leaving a flag off keeps the module
+inert — it costs only a dictionary lookup at eval time.
 
-4. Pick a shell and stay in it. `sudo` may prompt for the password you just set.
-
-## Bootstrap flow — Oracle ARM (aarch64) / 기타 aarch64 서버
-
-> AVF / 폰 라우트는 위 박스 사유로 **현재 보류**. 같은 aarch64라도 RAM 충분한
-> 클라우드 ARM VM에서는 그대로 동작한다 (1차 타겟).
+## Bootstrap flow
 
 No git, no SSH keys. Anonymous HTTPS tarball.
 
@@ -59,69 +52,88 @@ cd openglg-config-main/home
 
 # 2. Personalize settings
 cp settings.nix.example settings.nix
-# edit: user.username, user.email, system = "aarch64-linux"
+# edit: user.username, user.email, system, and any features.* you want on
 
 # 3. Run bootstrap
 ./bootstrap.sh
 ```
 
-First `switch` takes a while on aarch64 — binary cache hit rate is lower than
-x86_64. Subsequent switches are fast.
+`bootstrap.sh` installs apt minimum, runs the Determinate Nix installer, and
+applies `home-manager switch --flake .`. First `switch` on aarch64 takes a
+while (lower binary-cache hit rate); turning on `features.languages` or
+`features.emacs` adds significant build time on first run.
 
-## Bootstrap flow — Ubuntu x86_64 VPS
+### Targets
 
-Same, change one line in `settings.nix`:
+| Target | `system` | Notes |
+|--------|----------|-------|
+| Ubuntu x86_64 VPS / laptop | `x86_64-linux` | primary 1st-class target |
+| Oracle A1 ARM / other cloud ARM | `aarch64-linux` | works, slower first switch |
+| Galaxy S26 AVF Debian VM | `aarch64-linux` | **parked**, see header note |
 
-```nix
-system = "x86_64-linux";
-```
-
-And set `user.username` to your login name (`whoami`).
-
-## Fork-and-modify pattern (Step 2+)
+## Fork-and-modify pattern
 
 Anyone using this as a template:
 
-1. Fork `openglg-config` on GitHub web (no keys).
+1. Fork `openglg-config` on the GitHub web UI (no keys needed).
 2. `curl -L https://github.com/<you>/openglg-config/archive/main.tar.gz | tar xz`
-3. Edit `home/settings.nix`, run `./bootstrap.sh`.
-4. After bootstrap, authenticate to push back:
+3. Edit `home/settings.nix` — set identity, system, and which features to enable.
+4. Run `./bootstrap.sh`.
+5. To push back, authenticate after bootstrap:
 
    ```bash
-   gh auth login                 # device flow — no SSH key needed
-   gh repo clone <you>/openglg-config   # now over authenticated HTTPS
+   gh auth login                              # device flow — no SSH key needed
+   gh repo clone <you>/openglg-config         # now over authenticated HTTPS
    ```
 
-No SSH keypair required at any point. `gh` stores a token.
+No SSH keypair is required at any point. `gh` stores a token.
 
 ## Verification checklist
 
-After `./bootstrap.sh` completes:
+After `./bootstrap.sh` completes, in a fresh shell:
 
 - [ ] `nix --version` prints a version
-- [ ] `git --version`, `gh --version`, `rg --version`, `fd --version`, `bat --version`
-      all work in a fresh shell
+- [ ] `git --version`, `gh --version`, `rg --version`, `fd --version`, `bat --version` all work
 - [ ] `git config --global user.email` matches `settings.nix`
-- [ ] `dpkg -l | wc -l` shows only the expected apt packages (no creep)
+- [ ] If `features.cli = true`: `eza --version`, `jq --version`, `lazygit --version` work
+- [ ] If `features.tmux = true`: `tmux -V` shows 256-color + true-color in `:show-options -g`
+- [ ] If `features.emacs = true`: `emacs --version` shows `emacs-nox`, `mu --version` works
+- [ ] If `features.syncthing = true`: `systemctl --user status syncthing.service` is active
+- [ ] `dpkg -l | wc -l` did not balloon — apt footprint stays minimal
 
-Record anything that fails — that's Step 1 output.
+Record anything that fails — that is the test pipeline talking.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `flake.nix` | home-manager flake, reads `settings.nix` |
-| `settings.nix.example` | template — copy to `settings.nix` |
-| `modules/minimal.nix` | smoke-test module (bash/git/gh/rg/fd/bat) |
-| `bootstrap.sh` | apt minimum → Nix install → `switch` |
+| `flake.nix` | home-manager flake — reads `settings.nix`, loads all modules |
+| `settings.nix.example` | template; `settings.nix` is gitignored |
+| `bootstrap.sh` | apt minimum → Nix install → `home-manager switch` |
+| `modules/minimal.nix` | baseline (always on): bash + git identity + gh + rg/fd/bat |
+| `modules/shell.nix` | feature: extra bash + FZF/atuin/zoxide/direnv |
+| `modules/git.nix` | feature: aliases + delta + LFS + sane defaults |
+| `modules/cli.nix` | feature: modern CLI drawer + neovim |
+| `modules/tmux.nix` | feature: tmux + zellij |
+| `modules/emacs.nix` | feature: emacs-nox + spell + mail + LaTeX |
+| `modules/gpg.nix` | feature: gpg + pass + authinfo symlink |
+| `modules/syncthing.nix` | feature: services.syncthing + stc |
+| `modules/languages.nix` | feature: nodejs/python/go/zig/clojure + LSPs |
 
-## Out of scope (Step 2+)
+## Adding a host-local module
 
-- Profile split (mobile / vps / workstation)
-- Feature flags (emacs / tmux / langs / heavy)
-- additional host home.nix port
+Modules read from `settings` via `extraSpecialArgs` — they never hardcode an
+identity. If you need something this template doesn't ship (e.g. a host-only
+service), drop a `modules/<name>.nix` next to the others, add it to the
+`modules = [ ... ]` list in `flake.nix`, and gate it on a new flag in
+`settings.features`. Keep host-specific values out of the module file —
+read them from `settings`.
+
+## Out of scope (still parked)
+
+- Profile split (server / vps / workstation) — single profile via feature flags is enough today
+- `run.sh home:*` subcommands — `home-manager switch --flake home` is short enough
 - Server ↔ home `.env` sharing
-- `run.sh home:*` subcommands
-- pass / gpg / authinfo wiring
+- A GUI/Wayland module — this template targets headless / TTY operators
 
-See the llmlog note for the full plan.
+If you need any of these, open a PR or fork.

@@ -100,10 +100,16 @@ MEMORY.md       Operator notes (tracked) — companion to nixos-config/MEMORY.md
   for the AVF/phone case. Don't try to merge it back into `home/` until the underlying
   AVF/OS issues are resolved — the value of keeping it separate is that the boundary
   is visible.
-- Step 1 (current): one `homeConfigurations.<settings.user.username>` with a minimal
-  module (bash + git + gh + rg/fd/bat). Step 2+ (parked in linked llmlog note):
-  profile split (`mobile` / `vps` / `workstation`), feature flags, language modules,
-  pass/gpg/authinfo wiring, `run.sh home:*` subcommands.
+- Module layout: `home/modules/minimal.nix` is the **baseline** (always loaded —
+  bash + git identity + gh + rg/fd/bat). Everything else (`shell`, `git`, `cli`,
+  `tmux`, `emacs`, `gpg`, `syncthing`, `languages`) lives in its own
+  `home/modules/<name>.nix` and is gated by `settings.features.<name>` via
+  `lib.mkIf`. Default for every flag is `false` — a fresh `cp settings.nix.example
+  settings.nix` produces the minimal baseline and nothing more.
+- New modules must follow the same pattern: gate with `settings.features.<name> or
+  false`, read identity from `settings.user.*`, never hardcode a username or path.
+- Profile split (server / vps / workstation) and `run.sh home:*` subcommands stay
+  out of scope — one profile + feature flags has been enough so far.
 
 ## Gateway: Caddy + Authelia
 

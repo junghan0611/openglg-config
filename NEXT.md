@@ -4,77 +4,57 @@
 
 ## 지금 상태 (2026-05-27 KST)
 
+### Server half — Forgejo 배포 + OpenClaw webhook 연동 클로즈
+
 - ✅ Forge 인프라 박힘: `forge/docker-compose.yml`, `.env.example`, `.gitignore`, `README.md`
-- ✅ Caddy 라우팅: `/forge/*` handle_path (Caddyfile + template 양쪽) — inode caching 함정 재현 + `docker compose restart caddy` 정공법 검증
-- ✅ Authelia bypass: `/forge` → `bypass` 룰 (configuration.yml + template 양쪽)
-- ✅ `run.sh APP_SERVICES` 에 forge 추가
-- ✅ AGENTS.md / README.md 갱신 + forge-config 담당자 링크 박음
-- ✅ Deploy 가동: `forge` + `forge-db` (healthy), `/forge/` install wizard 외부에서 응답
-- ✅ 데이터 위치: `/disk-A/docker-data/forge*` (`forge/.env` 의 `DATA_DIR=/disk-A/docker-data`). root partition 잠식 방지 — git repo 가 자라도 OK
-- ✅ Wizard 통과: admin = `junghan`
-- ✅ 봇 계정 `glg-bot` + 토큰 발급 (scopes: write:user/repository/issue/organization, read:user)
-- ✅ `~/.env.local` 박힘: FORGE_URL/TOKEN/USER + FORGE_BOT_FOOTER override
-- ✅ smoke test 통과: version=15.0.2, user=glg-bot, repos=0→2
-- ✅ Mirror migration 2건 (회사 GitHub org → `glg-bot/*` pull mirror, 1h interval). GitHub 코드 SSOT 유지, Forgejo 는 봇 운영면 (issue/label/PR 자율). 자세한 repo 명단은 운영 메모로 둠.
-- ✅ 라벨 protocol 5개 박힘 (양쪽 mirror)
-- ✅ `bin/forge` round-trip 통과: state / comment / label-add 양호 — 첫 운영 이슈에 검증 흔적 보존
+- ✅ Caddy 라우팅: `/forge/*` handle_path (Caddyfile + template 양쪽)
+- ✅ Authelia bypass: `/forge` → `bypass` 룰
+- ✅ Deploy 가동 + Wizard 통과 + 봇 계정 + 토큰 + 라벨 protocol + mirror migration + `bin/forge` round-trip
+- ✅ **OpenClaw Forgejo webhook bypass** (2166fe0): `/openclaw/hooks/forgejo` exact path만 Authelia 우회. wildcard `/openclaw/hooks/*` 금지 — `/hooks/agent` direct-agent endpoint 노출 차단. `header_up X-OpenClaw-Idempotency-Key {http.request.header.X-Forgejo-Delivery}` 로 source-agnostic idempotency contract.
+- ✅ **Forgejo webhook allow-list 수정** (b5186d9): `[webhook] ALLOWED_HOST_LIST=private,loopback,${DOMAIN}`. 기본값 `private,loopback` 가 `${DOMAIN}/openclaw/hooks/...` 외부 IP 해석으로 차단하던 함정. `forge/README.md` Troubleshooting + Security posture 박제.
+- ✅ **공개 `.env.example` 누락 자리 채움** (34fcbd5): `metabase/`, `postgres/` 신규 생성, `forge/.env.example` 에 `DOMAIN`/`DATA_DIR` 키 명시. 포커가 cp `.env.example` `.env` 후 빈손 안 됨.
 
-## 발견된 함정 — forge-config 본 repo 거리
+### Home half — Step 2 진입 (모듈 + feature flags)
 
-- **`bin/forge` 의 `FORGE_BOT_FOOTER` default 가 단일 호스트/모델 하드코딩**. 다른 host/model 에서 도는 봇이 자동으로 본인 footer 박지 못함. 단기 우회: 각 호스트의 `~/.env.local` 에 `FORGE_BOT_FOOTER` override. 장기 fix: forge-config 본 repo 에서 `bin/forge` 가 `~/.current-device` + 호출 시 model 인자를 자동 감지. forge-config issue 거리.
-- **토큰 채팅 노출 위험**: 첫 토큰 `01b4182e...` 가 세션 JSONL + 화면에 평문으로 남음. **revoke + 재발급 권장 (호스트 직접 박기, 채팅 X)**. 이건 forge-config AGENTS.md 의 시크릿 규약에 “토큰 채팅 노출 시 즉시 revoke” 박는 거리.
+- ✅ **modular home-manager**: `home/modules/minimal.nix` baseline 유지 + 8개 opt-in 모듈 추가. `settings.features.*` 토글 (모두 default `false`).
+  - `shell`, `git`, `cli`, `tmux`, `emacs`, `gpg`, `syncthing`, `languages`
+  - 각 모듈 `lib.mkIf` 로 self-gate, identity 는 `settings.user.*` 에서 받음
+  - Nix evaluate 검증: defaults 시 minimal 만 / 모든 flag on 시 모든 모듈 enable 확인
+- 참고: 운영 머신은 별도의 (private) NixOS host config 에서 home-manager 를 관리한다. openglg-config 측 `home/` 은 **다른 호스트 (Oracle ARM / VPS / 우분투 laptop)** 가 쓰는 공개 template 자리.
+
+## 발견된 함정 — 본 repo 안 박힌 자리
+
+- **`bin/forge` 의 `FORGE_BOT_FOOTER` default 가 단일 호스트/모델 하드코딩**. 다른 host/model 에서 도는 봇이 자동으로 본인 footer 박지 못함. 단기 우회: 각 호스트의 `~/.env.local` 에 `FORGE_BOT_FOOTER` override. 장기 fix: forge-config 본 repo 에서 `bin/forge` 가 `~/.current-device` + 호출 시 model 인자를 자동 감지. **forge-config issue 자리**.
+- **토큰 채팅 노출 위험**: 채팅 평문 노출 시 즉시 revoke + 재발급 — forge-config AGENTS.md 의 시크릿 규약 자리.
+- **homer/.env 잘못 들어간 시스템 변수**: `HOME=` 등 export 캡처 흔적. homer compose 가 env 변수 자체를 안 쓰니까 비워도 되는 자리. GLG 운영면 정리 거리.
 
 ## 다음 한 걸음
 
-### 1. 배포 — `forge/` 띄우기 (operator)
+### Server half — operator follow-ups
 
-```bash
-cd ~/repos/gh/openglg-config/forge
-cp .env.example .env
-openssl rand -base64 32 | tr -d '/+=' | head -c 32   # → FORGE_DB_PASSWORD
-chmod 600 .env
+- **운영면 `caddy/Caddyfile` 검증**: 이번 사이클에 박힌 webhook bypass + header_up 이 운영면 응답으로 GREEN 확인됨 (`/openclaw/hooks/forgejo` → 401 OpenClaw 직접, `/agent` → 303 Authelia). retry 트리거 시 OpenClaw forge agent 까지 도착 검증은 OpenClaw 운영 분신 자리.
+- **다른 서비스도 `/disk-A` 로 옮길지** — `mattermost`, `postgres`, `openclaw` 등 root partition. 자라는 서비스부터 `DATA_DIR=/disk-A/docker-data` 패턴으로 이전 가능. compose 들이 이미 `${DATA_DIR:-~/docker-data}` 받게 박혀있어서 stop → mv → up.
+- **HMAC signature 검증 (선택)**: webhook hardening — OpenClaw upstream / adapter / Caddy 확장 모듈 셋 중 하나 자리. openglg-config 자리는 아님.
 
-mkdir -p ~/docker-data/forge/data ~/docker-data/forge-db/pgdata
-docker compose up -d
-docker compose logs -f forge          # "Listen: http://0.0.0.0:3000" 대기
+### Home half — Step 2 활용 follow-ups
 
-# Caddy + Authelia 리로드
-docker compose -f ../caddy/docker-compose.yml restart caddy
-docker compose -f ../authelia/docker-compose.yml restart authelia
-```
+- **실 호스트에서 검증**: Oracle ARM 또는 우분투 노트북에서 `./bootstrap.sh` → features 점진 토글 → 첫 swirh 시간 / OOM 여부 / 패키지 missing 기록. Step 1 verification checklist 의 features 별 자리 채움.
+- **`features.emacs` 빌드 시간**: 첫 switch heavy (LaTeX scheme-medium + hunspell + texlive). 작은 VPS 에서 disable 권고 — `home/README.md` 에 명시했지만 실측 후 가이드 보강.
+- **AGENTS.md "Backup of OpenClaw runtime" 자리**: nixos-config 가 owner 인 자리 — 별도 자리.
 
-### 2. Wizard 통과 + 봇 계정
+### 결정 대기 항목 (힣)
 
-브라우저로 `https://${DOMAIN}/forge/` → admin 계정 생성 → 로그인 →
-`Site Administration → Create User Account` 로 `glg-bot` 발급 →
-`Settings → Applications → Generate New Token` (`agent-bus`,
-scopes: `write:user`, `write:repository`, `write:issue`, `write:organization`, `read:user`)
-→ `~/.env.local` 에 `FORGE_URL` / `FORGE_TOKEN` / `FORGE_USER` 박기.
-
-### 3. 검증 round-trip
-
-```bash
-source ~/.env.local
-curl -s "$FORGE_URL/api/v1/version" | jq .
-curl -s -H "Authorization: token $FORGE_TOKEN" "$FORGE_URL/api/v1/user" | jq .login   # glg-bot
-```
-
-그 다음 `forge-config/bin/forge list-open` 이 `glg-bot/sandbox` 패턴으로 동작하는지 확인 — 단,
-이 인스턴스에서는 회사 작업용 repo 이름이 다를 수 있어 `bin/forge` 의 기본 repo 설정 점검 필요.
-
-### 4. 결정 대기 항목 (힣)
-
-- `glg-bot` 외에 회사 작업용 봇 계정 namespace 분리 여부 (계정 이름은 운영 메모에 둠, 이 repo 에는 X).
-- 라벨 protocol — `forge-config` 의 5개 라벨 (`agent:ready` 등) 을 그대로 쓸지, 회사 워크플로에 맞춰 확장할지.
-- GitHub mirror — Forgejo 의 push mirror 로 GitHub 공개 repo 와 동기화할지 여부. (회사 작업은 mirror 안 함 가능성 높음.)
-- 첫 회사 repo 생성 — admin 으로 organization 박고 들어갈 repo 목록.
-- 다른 서비스도 `/disk-A` 로 옮길지 — `mattermost`, `postgres`, `openclaw` 등은 아직 `~/docker-data` (root partition). 자라는 서비스 (mattermost data, postgres) 부터 같은 `DATA_DIR=/disk-A/docker-data` 패턴으로 이전 가능. compose 들이 이미 `${DATA_DIR:-~/docker-data}` 받게 박혀있어서 stop → mv → up 으로 끝남.
+- `glg-bot` 외에 회사 작업용 봇 계정 namespace 분리 여부 (운영 메모 자리, 이 repo 에는 X).
+- 라벨 protocol 확장 여부 (forge-config 의 5개 라벨 → 회사 워크플로 맞춤).
+- GitHub mirror push 방향 (Forgejo → GitHub) 활성화 여부.
+- 첫 회사 repo organization 생성.
 
 ## 미루지 말 것
 
 - `forge/.env` 는 절대 commit X — 두 겹 .gitignore 가 막아주지만 `git status` 로 매번 확인.
-- 운영본 `caddy/Caddyfile` / `authelia/configuration.yml` 은 gitignored — template 만 커밋. 변경할 때 양쪽 동기화 필수 (오늘 작업의 패턴).
+- 운영본 `caddy/Caddyfile` / `authelia/configuration.yml` 은 gitignored — template 만 커밋. 변경할 때 양쪽 동기화 필수.
 - 토큰 발급 후 `git log -p | grep -i token` 로 history 오염 검사.
+- Forgejo / Caddy / OpenClaw 어느 한 곳을 손볼 때 다른 두 자리의 함정 박제 (`forge/README.md` Troubleshooting, AGENTS.md webhook rule) 도 같이 점검.
 
 ## 미루어도 되는 것
 
@@ -82,9 +62,11 @@ curl -s -H "Authorization: token $FORGE_TOKEN" "$FORGE_URL/api/v1/user" | jq .lo
 - LFS 사용 — 활성화돼있으나 회사 작업 패턴 확정 후 실사용.
 - 백업 자동화 — `scripts/backup.sh` 가 forge 까지 커버하도록 확장 (지금은 README 의 수동 명령).
 - agent skill 표면 — `forge-config` 가 `.claude/skills/forge/SKILL.md` 박은 후 agent-config 에서 thin pointer.
+- `home/` profile split / `run.sh home:*` subcommands — 한 profile + feature flags 로 충분히 진행 가능.
 
 ## 영속할 자리
 
 - 라벨 protocol 확정 → `forge-config/AGENTS.md` 의 라벨 섹션 갱신.
-- 함정 박제 (INSTALL_LOCK, write:user, inode cache) → 이미 `forge/README.md` 본문 + Changelog 에 박힘.
-- 운영 사실 (회사 repo 명, organization 이름) → 절대 이 공개 repo 에 안 들어옴. `forge-config` 도 공개라 동일. 필요하면 host `~/.env.local` + 운영 매뉴얼 (private) 자리.
+- 함정 박제 (INSTALL_LOCK, write:user, inode cache, `[webhook] ALLOWED_HOST_LIST`) → `forge/README.md` 본문 + Changelog.
+- AGENTS.md webhook rule (external webhook receivers — exact path only, wildcard 금지) — 다음 webhook source 박을 때 wildcard 유혹 차단.
+- 운영 사실 (회사 repo 명, organization 이름) → 절대 이 공개 repo 에 안 들어옴. host `~/.env.local` + 운영 매뉴얼 (private) 자리.

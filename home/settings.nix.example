@@ -1,24 +1,47 @@
 # Copy to settings.nix and edit. settings.nix is gitignored.
 #
-# Step 1 goal: verify Nix + home-manager switch works on AVF Debian.
+# Goal: reproduce the operator's shell + dev tools on any Debian/Ubuntu
+# (Oracle ARM, VPS, laptop) starting from three apt packages.
 #
 # Username conventions per target:
-#   S26 AVF Debian     → "droid"     (system default, keep as-is for reproducibility)
-#   Ubuntu VPS / laptop → your login name
+#   Ubuntu VPS / laptop → your login name (`whoami`)
+#   Oracle A1 ARM       → ubuntu (default cloud-init user)
+#   S26 AVF Debian      → "droid"  (system default — phone route is parked)
 #
 # Run `whoami` on the machine first if unsure.
 
 {
   user = {
-    username = "droid";                # change per machine; "droid" on AVF Debian
+    username = "alice";
     fullName = "Alice Example";
     email    = "alice@example.com";
   };
 
-  # S26 AVF Debian VM = aarch64-linux
-  # Ubuntu VPS (x86)  = x86_64-linux
-  # Oracle A1 ARM     = aarch64-linux
-  system = "aarch64-linux";
+  # Ubuntu VPS (x86) = x86_64-linux
+  # Oracle A1 ARM    = aarch64-linux
+  # S26 AVF Debian   = aarch64-linux  (route parked)
+  system = "x86_64-linux";
 
   stateVersion = "25.05";
+
+  # === Feature toggles ===
+  # Everything is off by default. Turn things on per host as you need them.
+  # The minimal module (bash + git identity + gh + rg/fd/bat) is always loaded
+  # so a freshly bootstrapped machine has a working baseline even with every
+  # flag below set to false.
+  features = {
+    shell     = false;  # bash aliases, prompt, FZF/atuin/zoxide, e()/ec()/v()
+    git       = false;  # git aliases, delta, prettylog, conflictstyle, LFS
+    cli       = false;  # eza, jq, yq, htop/btop, lazygit, tokei, ncdu, neovim, ...
+    tmux      = false;  # tmux 256-color + OSC52 + vi keys + zellij (dracula)
+    emacs     = false;  # emacs-nox + spell (aspell/hunspell-ko) + pandoc/mu/isync + LaTeX
+    gpg       = false;  # gpg + gpg-agent (curses) + pass + optional authinfo symlink
+    syncthing = false;  # services.syncthing (basic; pair via web UI after switch)
+    languages = false;  # nodejs/python/go/zig/clojure/nix LSP + C/C++ build tools
+  };
+
+  # gpg.nix only — path under $HOME to your authinfo.gpg (e.g. synced via
+  # syncthing). When non-empty, gpg.nix symlinks it to ~/.authinfo.gpg on
+  # activation. Leave empty to skip the symlink.
+  authInfoSource = "";
 }

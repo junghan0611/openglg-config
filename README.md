@@ -322,6 +322,20 @@ Use the mother repo when the host is yours and reproducibility starts at the OS.
 
 ## Changelog
 
+### v0.5.0 (2026-05-27)
+
+- **`home/` Step 2 — modular feature flags**: `home/modules/minimal.nix` stays
+  the baseline (always loaded: bash + git identity + gh + rg/fd/bat). Eight new
+  opt-in modules ship next to it, each gated by `settings.features.<name>`:
+  `shell`, `git`, `cli`, `tmux`, `emacs`, `gpg`, `syncthing`, `languages`.
+  Default for every flag is `false`, so a fresh `cp settings.nix.example
+  settings.nix` still produces the minimal smoke-test environment. Turn on
+  what you need per host — `features.emacs = true;` pulls emacs-nox plus
+  spell/mail/LaTeX deps, `features.languages = true;` pulls nodejs/python/go/
+  zig/clojure + LSPs, and so on. Module bodies use `lib.mkIf`, so leaving a
+  flag off is essentially free at eval time. Identity (`username`, `email`,
+  `authInfoSource`) stays in `settings.nix`; modules never hardcode it.
+
 ### v0.4.1 (2026-05-27)
 
 - **OpenClaw Forgejo webhook bypass**: `/openclaw/hooks/forgejo` now bypasses
