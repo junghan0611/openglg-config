@@ -131,6 +131,39 @@ MEMORY.md       Operator notes (tracked) — companion to nixos-config/MEMORY.md
   that can fall back to a default agent if `agentId` is omitted), widening the
   blast radius on token leak. One exact path per webhook source.
 
+## Container addressing — never hardcode a container IP
+
+Docker bridge IPs (`172.18.0.x`) are **not stable**. They are assigned in
+container start order, so a recreate (image bump, `up -d`, restart) can hand a
+container a different `.x` than it had before. A literal like `172.18.0.7` that
+meant "mattermost" yesterday can resolve to "postgres" today. Hardcoding one
+breaks silently — the config still parses, the target is just wrong.
+
+Rules:
+
+- **Container → container:** use the service **DNS name**, never an IP. Caddy
+  already does this (`reverse_proxy mattermost:8065`, `reverse_proxy
+  homer:8080`). Docker's embedded DNS resolves the name to the current IP on
+  every connect, so churn is invisible.
+- **Host-native → container:** a service running on the host outside Docker
+  (e.g. the host-native OpenClaw gateway reaching dockerized Mattermost) cannot
+  use Docker DNS. Reach it through the **Caddy public hostname** instead —
+  `https://<DOMAIN>/mattermost` on the Authelia-free `/mattermost/api|hooks|
+  oauth|plugins` prefixes. Stable, TLS-terminated, and already routed.
+- **Source allowlists (trustedProxies and friends):** when a config must name
+  the *source* of proxied traffic, allow the **bridge subnet** `172.18.0.0/16`,
+  not a single container IP. The proxying container's own IP churns too.
+- **The one stable single IP is `172.18.0.1`** — the bridge *gateway*, not a
+  container. That is how Caddy reaches a host-native service
+  (`reverse_proxy 172.18.0.1:18789`). It is fixed for the life of the network,
+  so it is the only literal IP that belongs in committed/runtime config.
+
+History: 2026-06-04 Mattermost `fetch failed` from the host-native OpenClaw
+gateway. Root cause = a stale hardcoded `baseUrl: 172.18.0.7` (had drifted to
+postgres) plus `trustedProxies: ["172.18.0.2"]` (had drifted to homer). Fixed by
+switching to the Caddy hostname + the `172.18.0.0/16` subnet. The runtime config
+lives in the private host runbook; this rule is the portable lesson.
+
 ## Conventions
 
 - README and AGENTS.md in English.

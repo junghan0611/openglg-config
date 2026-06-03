@@ -22,6 +22,17 @@
   - Nix evaluate 검증: defaults 시 minimal 만 / 모든 flag on 시 모든 모듈 enable 확인
 - 참고: 운영 머신은 별도의 (private) NixOS host config 에서 home-manager 를 관리한다. openglg-config 측 `home/` 은 **다른 호스트 (Oracle ARM / VPS / 우분투 laptop)** 가 쓰는 공개 template 자리.
 
+### Server half — Mattermost 컨테이너 주소 안정화 (2026-06-04)
+
+- ✅ **근본 원인 = 도커 컨테이너 IP churn**. 호스트-네이티브 OpenClaw gateway (`~/.openclaw/openclaw.json`) 가 dockerized Mattermost 를 컨테이너 IP 로 하드코딩 → 재생성마다 `.x` 끝자리 drift → `API auth failed: fetch failed`. 라이브에서 baseUrl `172.18.0.7`(→postgres), trustedProxies `172.18.0.2`(→homer) 둘 다 stale.
+- ✅ **라이브 fix** (`~/.openclaw`, 본 repo 밖): baseUrl→`https://<DOMAIN>/mattermost`(Authelia-free API prefix), trustedProxies→`172.18.0.0/16` 서브넷. 3봇 connected, fetch failed 0. 백업 `openclaw.json.bak-mm-stable-<날짜>`.
+- ✅ **SSOT 영속화 (B 본체, 이 repo)**:
+  - `AGENTS.md` "Container addressing — never hardcode a container IP" 섹션 신설 (서비스 DNS / Caddy 호스트네임 / `/16` 서브넷 / `.1` 브리지 게이트웨이 4규칙 + 6/4 history).
+  - `openclaw/README.md` "Channel base URLs" 가이드 — `<MATTERMOST_BASE_URL>` 권장값 = Caddy 호스트네임.
+  - 사설 host 런북 (로컬, gitignored) stale 서술 정정 + Mattermost 채널 항목 추가.
+- 비고: docker-compose static IP 핀은 **불필요** — 스택이 이미 Caddy 도커 DNS 호스트네임으로 라우팅하므로 핀이 오히려 역행. 호스트-네이티브 끝단만 호스트네임/서브넷으로 가면 됨.
+- 후속(선택): `openclaw.json.example` 은 JSON 이라 인라인 주석 불가 → 가이드는 README 에만. placeholder `<MATTERMOST_BASE_URL>` 유지.
+
 ## 발견된 함정 — 본 repo 안 박힌 자리
 
 - **`bin/forge` 의 `FORGE_BOT_FOOTER` default 가 단일 호스트/모델 하드코딩**. 다른 host/model 에서 도는 봇이 자동으로 본인 footer 박지 못함. 단기 우회: 각 호스트의 `~/.env.local` 에 `FORGE_BOT_FOOTER` override. 장기 fix: forge-config 본 repo 에서 `bin/forge` 가 `~/.current-device` + 호출 시 model 인자를 자동 감지. **forge-config issue 자리**.

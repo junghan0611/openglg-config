@@ -79,6 +79,25 @@ docker compose up -d openclaw-gateway
 
 If using the root stack, Caddy proxies `/openclaw/` to `openclaw-gateway:18789` and Authelia protects it.
 
+## Channel base URLs — use the Caddy hostname, not a container IP
+
+When a channel in `config/openclaw.json` points at another service in this stack
+(e.g. `channels.mattermost.baseUrl`, `<MATTERMOST_BASE_URL>`), set it to the
+**Caddy public hostname**, not a Docker container IP:
+
+```
+"baseUrl": "https://<DOMAIN>/mattermost"     # ✅ stable, TLS, Authelia-free API path
+"baseUrl": "http://172.18.0.7:8065"          # ✗ container IP churns on recreate
+```
+
+Docker bridge IPs (`172.18.0.x`) are reassigned in start order, so a literal IP
+silently drifts to the wrong container after any restart. The Mattermost
+`/mattermost/api|hooks|oauth|plugins` prefixes bypass Authelia (service runs its
+own token auth), so a bot reaches them with just `<MATTERMOST_BOT_TOKEN>`. If the
+gateway runs **inside** Docker on the `proxy` network it may instead use the DNS
+name (`http://mattermost:8065`); a **host-native** gateway must use the hostname.
+See AGENTS.md "Container addressing" for the full rule.
+
 ## Smoke checks
 
 Compose wiring:
