@@ -11,8 +11,8 @@ cd "$DIR/caddy" && docker compose up -d
 echo "--- Remark42 ---"
 cd "$DIR/remark42" && docker compose up -d
 
-echo "--- Umami ---"
-cd "$DIR/umami" && docker compose up -d
+# Umami: opt-in (기본 비활성). 필요할 때만 수동 기동:
+#   cd "$DIR/umami" && docker compose up -d
 
 # OpenClaw은 선택 (설정 완료 후)
 if [ -f "$DIR/openclaw/.env" ]; then

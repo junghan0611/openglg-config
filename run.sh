@@ -5,7 +5,10 @@ cd "$(dirname "$0")"
 
 # Service startup order
 CORE_SERVICES=(caddy authelia postgres homer)
-APP_SERVICES=(metabase mattermost openclaw remark42 umami forge)
+APP_SERVICES=(metabase mattermost openclaw remark42 forge)
+# Opt-in services — NOT auto-started by `up`. Recipe kept under <svc>/.
+# Bring up manually when needed:  cd umami && docker compose up -d
+OPTIONAL_SERVICES=(umami)
 
 up() {
   echo "=== Starting core services ==="
@@ -21,7 +24,7 @@ up() {
 
 down() {
   echo "=== Stopping all services ==="
-  for s in "${APP_SERVICES[@]}" "${CORE_SERVICES[@]}"; do
+  for s in "${APP_SERVICES[@]}" "${OPTIONAL_SERVICES[@]}" "${CORE_SERVICES[@]}"; do
     [ -f "$s/docker-compose.yml" ] && (cd "$s" && docker compose down) && echo "  ✗ $s"
   done
 }
@@ -47,7 +50,7 @@ logs() {
   if [ -n "$svc" ]; then
     docker logs -f --tail 50 "$svc"
   else
-    for s in "${CORE_SERVICES[@]}" "${APP_SERVICES[@]}"; do
+    for s in "${CORE_SERVICES[@]}" "${APP_SERVICES[@]}" "${OPTIONAL_SERVICES[@]}"; do
       echo "--- $s ---"
       docker logs --tail 3 "$s" 2>/dev/null || echo "  (not running)"
     done
@@ -71,7 +74,8 @@ case "${1:-help}" in
     echo "  status    Container status + disk usage"
     echo "  logs      All logs (summary) or: logs <container>"
     echo ""
-    echo "Core: ${CORE_SERVICES[*]}"
-    echo "Apps: ${APP_SERVICES[*]}"
+    echo "Core:     ${CORE_SERVICES[*]}"
+    echo "Apps:     ${APP_SERVICES[*]}"
+    echo "Optional: ${OPTIONAL_SERVICES[*]} (opt-in, not auto-started)"
     ;;
 esac

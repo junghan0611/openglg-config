@@ -66,7 +66,7 @@ Enable what you need. Disable what you don't. Each service is one `docker compos
 | `/metabase/` | Metabase BI | required |
 | `/openclaw/` | OpenClaw AI | required; `/openclaw/hooks/forgejo` bypasses Authelia for Forgejo webhooks |
 | `/remark42/` | Remark42 comments | public |
-| `/umami/` | Umami analytics | public |
+| `/umami/` | Umami analytics | public — **opt-in, 기본 비활성** (컨테이너·Caddy 라우트 off) |
 | `/mattermost/` | Mattermost (web UI) | required; API/git surface bypasses Authelia |
 | `/forge/` | Forgejo | Forgejo self-auth (Authelia bypass) |
 
