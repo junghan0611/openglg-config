@@ -98,6 +98,12 @@ gateway runs **inside** Docker on the `proxy` network it may instead use the DNS
 name (`http://mattermost:8065`); a **host-native** gateway must use the hostname.
 See AGENTS.md "Container addressing" for the full rule.
 
+> Not the same as `callbackBaseUrl`. `baseUrl` is the bot **reaching out to**
+> Mattermost (gateway → chat). The interactive-button `callbackBaseUrl` is the
+> **opposite** direction (Mattermost → gateway) and stays **internal** —
+> `http://172.18.0.1:18789/mattermost`, never the public hostname. See AGENTS.md
+> "Interactive-button / approval-gate callbacks".
+
 ## Smoke checks
 
 Compose wiring:

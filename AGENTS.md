@@ -130,6 +130,24 @@ MEMORY.md       Operator notes (tracked) — companion to nixos-config/MEMORY.md
   the wildcard would also expose `/openclaw/hooks/agent` (a direct-agent endpoint
   that can fall back to a default agent if `agentId` is omitted), widening the
   blast radius on token leak. One exact path per webhook source.
+- **Interactive-button / approval-gate callbacks: keep them internal, gate at the
+  network.** When the gateway attaches action buttons to a chat message (the
+  approval gate for a delegated agent-in-charge — a click *is* an authorization),
+  the chat **server** POSTs to a callback URL when a button is clicked. For a
+  host-native gateway, point that callback at the **bridge gateway**
+  (`http://172.18.0.1:18789/mattermost`, the channel's `callbackBaseUrl`), **not**
+  the public hostname. The callback then never leaves the host: no Caddy, no
+  Authelia, no `X-Forwarded-For`/`trustedProxies` in play. Security is the chain
+  already in place — the user must be logged into the chat service to click, and
+  the **host firewall** already controls who can reach `:18789` (only the
+  bridge/Caddy today; an arbitrary container is refused). Do **not** add an
+  app-layer source-IP allowlist on top: on a shared bridge it cannot tell peers
+  apart without static pins, it collides with the global `trustedProxies` (a
+  *direct* source that is also inside `trustedProxies` is mistaken for a proxy →
+  its missing XFF → rejected), and it stops no attacker the firewall doesn't
+  already stop. One requirement on the chat-service side: its own SSRF guard
+  (Mattermost `AllowedUntrustedInternalConnections`) must list the gateway
+  address, or it blocks its own outbound callback to that private IP.
 
 ## Container addressing — never hardcode a container IP
 
@@ -150,9 +168,15 @@ Rules:
   use Docker DNS. Reach it through the **Caddy public hostname** instead —
   `https://<DOMAIN>/mattermost` on the Authelia-free `/mattermost/api|hooks|
   oauth|plugins` prefixes. Stable, TLS-terminated, and already routed.
-- **Source allowlists (trustedProxies and friends):** when a config must name
-  the *source* of proxied traffic, allow the **bridge subnet** `172.18.0.0/16`,
-  not a single container IP. The proxying container's own IP churns too.
+- **Trusting a bridge vs authenticating a peer.** To trust "traffic from the
+  bridge" (e.g. `trustedProxies` so the gateway reads XFF behind Caddy) the
+  **subnet** `172.18.0.0/16` is right and churn-immune. But a subnet **cannot
+  authenticate a specific peer** — it trusts every container on the bridge as
+  one. The moment a config must tell two same-bridge services apart (trust Caddy
+  as a proxy but treat the chat server as an origin), a subnet collapses them and
+  an IP allowlist becomes theater. Then either pin the peers to static IPs and
+  match exact IPs, or — simpler — drop the app-layer IP check and gate at the
+  network (firewall). A subnet grants trust; it does not prove identity.
 - **The one stable single IP is `172.18.0.1`** — the bridge *gateway*, not a
   container. That is how Caddy reaches a host-native service
   (`reverse_proxy 172.18.0.1:18789`). It is fixed for the life of the network,

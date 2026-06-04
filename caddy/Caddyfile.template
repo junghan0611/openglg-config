@@ -84,6 +84,12 @@ DOMAIN {
 		redir /forge/ 302
 	}
 
+	# NOTE: OpenClaw interactive-button (approval-gate) callbacks do NOT route through
+	# Caddy. The chat server POSTs directly to the gateway on the internal bridge
+	# (callbackBaseUrl = http://172.18.0.1:18789/mattermost), gated by the host
+	# firewall — no public endpoint, no bypass here. See AGENTS.md "Interactive-button
+	# / approval-gate callbacks".
+
 	# /mattermost API/WebSocket/hooks/plugins — Mattermost 자체 인증
 	# (모바일앱, 외부 webhook, 봇 API 가 Authelia 쿠키 없이 접근하려면 필요)
 	handle /mattermost/api/* {

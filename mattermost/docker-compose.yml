@@ -12,7 +12,11 @@ services:
       - MM_SQLSETTINGS_DATASOURCE=postgres://mattermost:${POSTGRES_PASSWORD}@mattermost-db:5432/mattermost?sslmode=disable&connect_timeout=10
       - MM_SERVICESETTINGS_SITEURL=https://${DOMAIN}/mattermost
       - MM_SERVICESETTINGS_LISTENADDRESS=:8065
-      - MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS=mattermost
+      # OpenClaw 인터랙티브 버튼(승인 게이트) 콜백이 Mattermost 를 떠나려면, 게이트웨이
+      # 주소가 이 SSRF 허용목록에 있어야 한다 (사설 IP outbound 는 기본 차단). host-native
+      # OpenClaw = 브리지 게이트웨이(172.18.0.1) / dockerized = 서비스명(openclaw-gateway).
+      # 버튼 미사용 시 OPENCLAW_CALLBACK_HOST 비워두면 동작 변화 없음.
+      - MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS=mattermost${OPENCLAW_CALLBACK_HOST:+ ${OPENCLAW_CALLBACK_HOST}}
       - MM_PLUGINSETTINGS_ENABLE=true
       - MM_PLUGINSETTINGS_ENABLEUPLOADS=true
       - TZ=Asia/Seoul

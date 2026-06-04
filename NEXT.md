@@ -2,9 +2,12 @@
 
 > 휘발성 후속 — 다음에 할 한 걸음. 영속 baseline 은 [AGENTS.md](./AGENTS.md), 공개 정체성은 [README.md](./README.md).
 
-## 지금 상태 (2026-05-27 KST)
+## 지금 상태 (2026-06-04 KST)
 
-### Server half — Forgejo 배포 + OpenClaw webhook 연동 클로즈
+> 최신 세션 = 2026-06-04 (Mattermost 안정화 + 버튼 콜백 설계). 그 아래 Forgejo/Home
+> 블록은 2026-05-27 완료분으로 그대로 둠.
+
+### Server half — Forgejo 배포 + OpenClaw webhook 연동 클로즈 (2026-05-27)
 
 - ✅ Forge 인프라 박힘: `forge/docker-compose.yml`, `.env.example`, `.gitignore`, `README.md`
 - ✅ Caddy 라우팅: `/forge/*` handle_path (Caddyfile + template 양쪽)
@@ -14,7 +17,7 @@
 - ✅ **Forgejo webhook allow-list 수정** (b5186d9): `[webhook] ALLOWED_HOST_LIST=private,loopback,${DOMAIN}`. 기본값 `private,loopback` 가 `${DOMAIN}/openclaw/hooks/...` 외부 IP 해석으로 차단하던 함정. `forge/README.md` Troubleshooting + Security posture 박제.
 - ✅ **공개 `.env.example` 누락 자리 채움** (34fcbd5): `metabase/`, `postgres/` 신규 생성, `forge/.env.example` 에 `DOMAIN`/`DATA_DIR` 키 명시. 포커가 cp `.env.example` `.env` 후 빈손 안 됨.
 
-### Home half — Step 2 진입 (모듈 + feature flags)
+### Home half — Step 2 진입 (모듈 + feature flags) (2026-05-27)
 
 - ✅ **modular home-manager**: `home/modules/minimal.nix` baseline 유지 + 8개 opt-in 모듈 추가. `settings.features.*` 토글 (모두 default `false`).
   - `shell`, `git`, `cli`, `tmux`, `emacs`, `gpg`, `syncthing`, `languages`
@@ -32,6 +35,7 @@
   - 사설 host 런북 (로컬, gitignored) stale 서술 정정 + Mattermost 채널 항목 추가.
 - 비고: docker-compose static IP 핀은 **불필요** — 스택이 이미 Caddy 도커 DNS 호스트네임으로 라우팅하므로 핀이 오히려 역행. 호스트-네이티브 끝단만 호스트네임/서브넷으로 가면 됨.
 - 후속(선택): `openclaw.json.example` 은 JSON 이라 인라인 주석 불가 → 가이드는 README 에만. placeholder `<MATTERMOST_BASE_URL>` 유지.
+- ✅ **버튼 콜백 설계 수렴** (내부 직결): 같은 세션에서 인터랙티브 버튼(승인 게이트) 콜백 경로를 3-churn 끝에 "내부 직결 + 네트워크 게이트"로 확정. 활성화 대기, 라이브 영향 0 → 상세는 아래 [다음 한 걸음] 참조.
 
 ## 발견된 함정 — 본 repo 안 박힌 자리
 
@@ -40,6 +44,36 @@
 - **homer/.env 잘못 들어간 시스템 변수**: `HOME=` 등 export 캡처 흔적. homer compose 가 env 변수 자체를 안 쓰니까 비워도 되는 자리. GLG 운영면 정리 거리.
 
 ## 다음 한 걸음
+
+#### Mattermost 인터랙티브 버튼 (승인 게이트) — 내부 직결 [활성화 대기]
+
+**왜 중요한가**: 힣은 무조건 승인(YOLO)이지만, 담당자(분신)에게 위임하면 consequential
+액션마다 **버튼 가드**로 막게 된다. 버튼 클릭 = 인가(authorization).
+
+**결정 — 완전 간단안 (내부 직결, app-layer IP 인증 제거)**. 설계가 여러 번 churn 했고
+최종 수렴점은 "내부 통신은 네트워크에서 게이트한다":
+- OpenClaw↔Mattermost 콜백은 **공개 인터넷에 안 나간다**. `callbackBaseUrl =
+  http://172.18.0.1:18789/mattermost`(브리지 게이트웨이 직결) → Caddy/Authelia/XFF/
+  trustedProxies 전부 비관여. **Caddy bypass 라우트 불필요.**
+- `allowedSourceIps` **미설정**. app-layer IP 허용목록은 (a) `trustedProxies=/16` 과
+  충돌(직결 소스가 /16 안에 있으면 게이트웨이가 프록시로 오인 → 없는 XFF → 403),
+  (b) 같은 브리지 위 피어를 핀 없이 구분 못 함, (c) 방화벽이 이미 막는 것 외엔 못 막음.
+- **진짜 게이트 = Mattermost 로그인 + 호스트 방화벽**(현재 18789 은 Caddy/브리지만 통과,
+  임의 컨테이너 거부 — 실측). 내부 단일운영자 호스트엔 이게 충분하고 정확.
+
+근거 앵커: `~/.openclaw/NEXT.md` (OpenClaw 분신이 박는 리뷰) + AGENTS.md "Interactive-button
+/ approval-gate callbacks" + "Trusting a bridge vs authenticating a peer".
+
+**활성화 3노브 (버튼 실제 도입 시 한 번에)**
+
+| 노브 | 자리 | 상태 |
+|---|---|---|
+| `mattermost/docker-compose.yml` SSRF 허용목록 += 게이트웨이 주소 (`OPENCLAW_CALLBACK_HOST`) — 안 하면 Mattermost 가 자기 콜백을 SSRF 가드로 차단 | **우리** | ✅ 파라미터화 완료. 호스트 `.env` 에 `OPENCLAW_CALLBACK_HOST=172.18.0.1` + `docker compose up -d mattermost` (recreate) |
+| 호스트 방화벽: Mattermost → 18789 통로 (서브넷이면 무핀, 더 조이려면 Mattermost static 핀) | **호스트 (GLG)** | 명령 대기 — `openclaw-proxy-firewall` aperture 확인/확장 (sudo) |
+| `callbackBaseUrl = http://172.18.0.1:18789/mattermost`, `allowedSourceIps` 미설정 | **OpenClaw 분신** | 단순화안 적용 대기 |
+
+**현재 상태**: 버튼 미사용 → 무해. `OPENCLAW_CALLBACK_HOST` 기본 빈값 = 라이브 동작 변화
+0. 이모지 반응(WebSocket)·텍스트 채팅 정상(3봇 connected). 활성화는 위 3노브를 동시에.
 
 ### Server half — operator follow-ups
 
