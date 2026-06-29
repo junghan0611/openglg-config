@@ -12,6 +12,9 @@ services:
       - MB_DB_USER=metabase
       - MB_DB_PASS=${METABASE_DB_PASSWORD}
       - MB_DB_HOST=postgres
+      # Web server port. Moved off the 3000 default so a legacy metabase on 3000
+      # can keep running during data migration; tunnel/Caddy must target :3333.
+      - MB_JETTY_PORT=3333
       - MB_ENCRYPTION_SECRET_KEY=${METABASE_SECRET_KEY}
       # Canonical site URL — must match how you expose metabase (see README "Gateway"):
       #   OPTION A (Caddy + Authelia):  - MB_SITE_URL=https://${DOMAIN}/metabase

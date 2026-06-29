@@ -27,7 +27,7 @@ policy:
 
   # Metabase
   - from: https://metabase.DOMAIN
-    to: http://metabase:3000
+    to: http://metabase:3333
     allowed_domains:
       - ALLOWED_DOMAIN
 

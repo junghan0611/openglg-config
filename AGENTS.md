@@ -150,7 +150,7 @@ Two gateways ship in this repo; use either, or mix per service:
 
 Notes for the Cloudflare-Tunnel path (option B): cloudflared joins the `proxy`
 network and the dashboard maps each hostname to the container (`http://n8n:5678`,
-`http://metabase:3000`) — never a container IP. A hostname maps to exactly one
+`http://metabase:3333`) — never a container IP. A hostname maps to exactly one
 tunnel, so moving it between hosts means re-pointing it in the dashboard (see
 cloudflare-tunnel/README.md). n8n keeps its own login + JWT and uses a dedicated
 `n8n-db` (forge pattern) regardless of which gateway fronts it.
