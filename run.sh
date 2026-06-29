@@ -5,10 +5,11 @@ cd "$(dirname "$0")"
 
 # Service startup order
 CORE_SERVICES=(caddy authelia postgres homer)
-APP_SERVICES=(metabase mattermost openclaw remark42 forge)
+APP_SERVICES=(metabase mattermost openclaw remark42 forge n8n)
 # Opt-in services — NOT auto-started by `up`. Recipe kept under <svc>/.
 # Bring up manually when needed:  cd umami && docker compose up -d
-OPTIONAL_SERVICES=(umami)
+# cloudflare-tunnel needs TUNNEL_TOKEN set before it can start, so it is opt-in.
+OPTIONAL_SERVICES=(umami cloudflare-tunnel)
 
 up() {
   echo "=== Starting core services ==="

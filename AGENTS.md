@@ -8,7 +8,7 @@ Two cooperating halves:
 
 1. **Server half** (top-level dirs) — an authenticated self-hosted platform.
    Caddy (gateway) + Authelia (auth) + Docker Compose: Homer, Metabase, OpenClaw,
-   Quartz, Remark42, Umami, Mattermost, Forge (Forgejo), PostgreSQL.
+   Quartz, Remark42, Umami, Mattermost, Forge (Forgejo), n8n, PostgreSQL.
 2. **Home half** (`home/` + parked `mobile/`) — a Nix + home-manager flake that reproduces the operator's
    shell and dev tools on any Debian/Ubuntu (Oracle ARM / VPS / laptop), starting from an
    absolute-minimum apt footprint and zero security keys. `mobile/` is an apt-only fallback
@@ -39,9 +39,11 @@ Operating principle: **don't duplicate state**. If a value belongs in the host O
 ```
 caddy/          Reverse proxy + auto HTTPS (gateway)           [server]
 authelia/       Authentication portal (forward_auth)           [server]
+cloudflare-tunnel/ Outbound tunnel gateway (Cloudflare Access)  [server]
 homer/          Service dashboard                              [server]
 postgres/       Shared PostgreSQL (pgvector)                   [server]
 metabase/       Business intelligence                          [server]
+n8n/            Workflow automation (Cloudflare Tunnel, dedicated DB) [server]
 openclaw/       OpenClaw AI gateway template (+ pi-shell-acp)   [server]
 quartz/         Obsidian → static site                         [server]
 remark42/       Self-hosted comments                           [server]
@@ -111,19 +113,47 @@ MEMORY.md       Operator notes (tracked) — companion to nixos-config/MEMORY.md
 - Profile split (server / vps / workstation) and `run.sh home:*` subcommands stay
   out of scope — one profile + feature flags has been enough so far.
 
-## Gateway: Caddy + Authelia
+## Gateway — two options: Caddy + Authelia, or Cloudflare Tunnel
 
-- **Path-based routing** — single domain, no wildcard DNS needed.
+Two gateways ship in this repo; use either, or mix per service:
+
+- **A. Caddy + Authelia** — path-based routing on one domain, Authelia for auth.
+  The templates default to this; the rules below describe it.
+- **B. Cloudflare Tunnel + Access (free)** — outbound-only, one hostname per
+  service, Cloudflare Access for auth. No public IP, no Caddy/Authelia for those
+  services. See `cloudflare-tunnel/`. metabase and n8n run on B in this deployment.
+
+### Caddy + Authelia (option A)
+
+- **Path-based routing** — single domain, no wildcard DNS needed. (Exception:
+  n8n has no working sub-path mode — even under option A it needs its own
+  `n8n.DOMAIN` subdomain, not a `/n8n` path. Or use option B's tunnel.)
 - **Caddy `forward_auth`** — delegates authentication to Authelia.
 - **`route` directive** — ensures forward_auth runs before `uri strip_prefix`.
 - **Authelia path prefix** — served at `/authelia/`, server address includes path
   (`tcp://:9091/authelia`).
 - Public services (homer, remark42, umami): no auth.
-- Protected services (metabase, openclaw): `one_factor` auth via Authelia.
+- Protected services (openclaw): `one_factor` auth via Authelia.
+- **metabase / n8n — gateway is the operator's choice (two options shipped).**
+  - **Option A — Caddy + Authelia.** metabase at `/metabase` (path); n8n needs a
+    `n8n.DOMAIN` subdomain block (it has no working sub-path mode). Templates
+    (`Caddyfile.template`, `configuration.yml.template`) ship this option.
+  - **Option B — Cloudflare Tunnel + Access (free).** Each on a dedicated hostname
+    via cloudflared (`cloudflare-tunnel/`); no Caddy/Authelia involved.
+  Pick one per service — never both for the same hostname. This deployment runs B;
+  the committed templates default to showing A so a forker starts with the
+  Caddy-only stack.
 - **Self-authenticated services (mattermost API, forge)**: Authelia bypass. The
   service runs its own login/token system, so git, mobile apps, webhooks, and
   external API clients can reach it without an Authelia cookie. Bypass is scoped
   to a single path prefix; never widen it to `/`.
+
+Notes for the Cloudflare-Tunnel path (option B): cloudflared joins the `proxy`
+network and the dashboard maps each hostname to the container (`http://n8n:5678`,
+`http://metabase:3000`) — never a container IP. A hostname maps to exactly one
+tunnel, so moving it between hosts means re-pointing it in the dashboard (see
+cloudflare-tunnel/README.md). n8n keeps its own login + JWT and uses a dedicated
+`n8n-db` (forge pattern) regardless of which gateway fronts it.
 - **External webhook receivers**: bypass Authelia only on the **exact path** the
   external service posts to, not on a wildcard. Example:
   `handle /openclaw/hooks/forgejo` is OK; `handle /openclaw/hooks/*` is **not** —
@@ -228,16 +258,18 @@ cd home && nix run home-manager/release-25.11 -- switch --flake . -b backup
 
 ```bash
 # Config validation
-for d in caddy authelia homer postgres metabase openclaw remark42 umami mattermost forge; do
+for d in caddy authelia homer postgres metabase openclaw remark42 umami mattermost forge n8n cloudflare-tunnel; do
   (cd $d && docker compose config --quiet && echo "$d: OK") || echo "$d: FAIL"
 done
 
 # Endpoint check
 curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/           # 200 (homer)
 curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/authelia/  # 200 (login)
-curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/metabase/  # 302 (auth redirect)
+curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/metabase/  # 302 (auth redirect; option A only)
 curl -s -o /dev/null -w '%{http_code}' https://DOMAIN/forge/     # 200 (Forgejo, self-auth)
 curl -s https://DOMAIN/forge/api/v1/version                      # {"version":"15.0.x"}
+docker exec n8n wget -qO- http://localhost:5678/healthz         # {"status":"ok"} (n8n; reached via Cloudflare Tunnel, not Caddy)
+docker logs cloudflared 2>&1 | grep -i "Registered tunnel"      # tunnel connector is up
 ```
 
 ### Home (Step 1 smoke test)

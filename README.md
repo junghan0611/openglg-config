@@ -12,7 +12,7 @@ This repo ships two cooperating stacks. Each half can be used independently.
 
 | Half | Lives in | Stack | Entry point | Used for |
 |------|----------|-------|-------------|----------|
-| **Server** | `caddy/`, `authelia/`, `postgres/`, `homer/`, `metabase/`, `openclaw/`, `remark42/`, `umami/`, `quartz/`, `mattermost/`, `forge/` | Docker Compose | `./run.sh up` | Hosting services behind an authenticated gateway |
+| **Server** | `caddy/`, `authelia/`, `cloudflare-tunnel/`, `postgres/`, `homer/`, `metabase/`, `openclaw/`, `remark42/`, `umami/`, `quartz/`, `mattermost/`, `forge/`, `n8n/` | Docker Compose | `./run.sh up` | Hosting services behind an authenticated gateway |
 | **Home** | `home/` | Nix flake + home-manager | `home/bootstrap.sh` | Reproducing your shell / dev tools on any Debian or Ubuntu |
 
 **Why both in one repo.** A solo operator's work surface is rarely just a server, and rarely just a laptop shell. It's "the server at my domain + the shell I use to touch it." Shipping both halves as one fork means: one clone, one set of docs, one bootstrap story. Fork it, edit your config, run two commands.
@@ -24,6 +24,7 @@ Authenticated self-hosted platform behind **Caddy + Authelia** with path-based r
 | Layer | Service | What it does |
 |-------|---------|-------------|
 | **Gateway** | [Caddy](https://caddyserver.com) + [Authelia](https://authelia.com) | Reverse proxy + auto HTTPS + authentication |
+| | [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/) | Outbound tunnel + Zero Trust Access — for services Caddy can't sub-path (n8n) |
 | **Dashboard** | [Homer](https://github.com/bastienwirtz/homer) | Service index page |
 | **Knowledge** | [Quartz](https://quartz.jzhao.xyz) | Obsidian vault → digital garden |
 | | [Remark42](https://remark42.com) | Self-hosted comments |
@@ -32,6 +33,7 @@ Authenticated self-hosted platform behind **Caddy + Authelia** with path-based r
 | **AI** | [OpenClaw](https://openclaw.org) | AI agent gateway (Telegram, web) with a public-safe pi-shell-acp Docker template |
 | **Chat** | [Mattermost](https://mattermost.com) | Team messaging |
 | **Code** | [Forgejo](https://forgejo.org) | Self-hosted git forge — issues, PRs, labels, webhooks. Operator companion: [`forge-config`](https://github.com/junghan0611/forge-config) |
+| **Automation** | [n8n](https://n8n.io) | Workflow automation — 400+ integrations. Cloudflare Tunnel + dedicated DB |
 | **Data** | [PostgreSQL](https://postgresql.org) | Shared database (pgvector enabled) |
 
 Enable what you need. Disable what you don't. Each service is one `docker compose up -d`.
@@ -57,18 +59,29 @@ Enable what you need. Disable what you don't. Each service is one `docker compos
                   └──────── PostgreSQL ──────┘
 ```
 
-**Path-based routing** — no wildcard DNS needed. Single A record for your domain.
+### Gateway — pick one, or mix per service
+
+- **A. Caddy + Authelia** (templates default) — path-based routing, no wildcard
+  DNS, single A record for your domain.
+- **B. Cloudflare Tunnel + Access** (free) — outbound-only, one hostname per
+  service, Cloudflare Access for auth, no public IP. See `cloudflare-tunnel/`.
+
+n8n has no working sub-path mode, so it always needs its own hostname (a Caddy
+subdomain **or** a tunnel); metabase works either way. This deployment runs
+metabase + n8n on **B**.
 
 | Path | Service | Auth |
 |------|---------|------|
 | `/` | Homer dashboard | public |
 | `/authelia/` | Login portal | — |
-| `/metabase/` | Metabase BI | required |
+| `/metabase/` | Metabase BI | required *(option A)* |
 | `/openclaw/` | OpenClaw AI | required; `/openclaw/hooks/forgejo` bypasses Authelia for Forgejo webhooks |
 | `/remark42/` | Remark42 comments | public |
 | `/umami/` | Umami analytics | public — **opt-in, 기본 비활성** (컨테이너·Caddy 라우트 off) |
 | `/mattermost/` | Mattermost (web UI) | required; API/git surface bypasses Authelia |
 | `/forge/` | Forgejo | Forgejo self-auth (Authelia bypass) |
+| `metabase.<host>` | Metabase BI | *(option B)* Cloudflare Access |
+| `n8n.<host>` | n8n automation | own hostname — Caddy subdomain (A) **or** tunnel (B) |
 
 ### Server quick start
 
@@ -172,6 +185,7 @@ The full design is held in a linked note. Step 1 intentionally lands a working b
 openglg-config/
 ├── caddy/                 # server — reverse proxy + auto HTTPS
 ├── authelia/              # server — authentication portal
+├── cloudflare-tunnel/     # server — outbound tunnel gateway (Cloudflare Access)
 ├── postgres/              # server — shared database
 ├── homer/                 # server — service dashboard
 ├── metabase/              # server — BI dashboards
@@ -181,6 +195,7 @@ openglg-config/
 ├── umami/                 # server — web analytics
 ├── mattermost/            # server — team chat
 ├── forge/                 # server — Forgejo (operator companion: forge-config)
+├── n8n/                   # server — workflow automation (Cloudflare Tunnel, dedicated DB)
 ├── scripts/               # server — init, up, status, backup
 ├── run.sh                 # server — service manager
 ├── home/                  # home — Nix + home-manager (Oracle ARM / VPS / laptop)
@@ -217,9 +232,11 @@ Pinned at deployment time. Record current versions for reproducibility.
 | Authelia | `authelia/authelia:latest` | 4.39.18 |
 | Homer | `b4bz/homer:latest` | 24.12.1 |
 | PostgreSQL | `pgvector/pgvector:pg16` | pg16 |
-| Metabase | `metabase/metabase:latest` | 0.54.5 |
+| Metabase | `metabase/metabase:v0.59.13` | 0.59.13 |
 | Umami | `ghcr.io/umami-software/umami:postgresql-latest` | 2.16.0 |
 | Forgejo | `codeberg.org/forgejo/forgejo:15` | 15.x LTS |
+| n8n | `docker.n8n.io/n8nio/n8n:2.25.7` | 2.25.7 |
+| Cloudflare Tunnel | `cloudflare/cloudflared:latest` | rolling |
 
 > Pin to specific tags in production to avoid breaking changes on `docker pull`.
 

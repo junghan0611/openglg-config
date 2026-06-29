@@ -1,0 +1,27 @@
+# Cloudflare Tunnel — outbound-only gateway (alternative to Caddy public exposure)
+#
+# cloudflared dials Cloudflare's edge from inside the host; no inbound ports and
+# no public IP are needed. Hostname→service routing (ingress) is stored in the
+# Cloudflare dashboard (Zero Trust → Networks → Tunnels), so this compose only
+# needs the tunnel token. Authentication is handled by Cloudflare Access, which
+# replaces Authelia for any service exposed through the tunnel.
+#
+# In the dashboard, point each Public Hostname at the service's DNS name on the
+# proxy network, e.g.   n8n.<your-domain>  →  http://n8n:5678
+# cloudflared resolves container names because it joins the proxy network — never
+# hardcode a container IP (see AGENTS.md "Container addressing").
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

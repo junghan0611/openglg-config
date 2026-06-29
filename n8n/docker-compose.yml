@@ -1,0 +1,138 @@
+# n8n — workflow automation (self-authenticated, own login + JWT)
+#
+# Pattern follows forge/: a dedicated DB on a private network, the app joins the
+# shared `proxy` network so the gateway can reach it. n8n has no working sub-path
+# mode (login breaks under /n8n/), so instead of a Caddy path it is exposed on its
+# own hostname through a Cloudflare Tunnel (cloudflared), with Cloudflare Access as
+# the auth gate — no Authelia. See cloudflare-tunnel/. n8n still keeps its own
+# login + JWT underneath.
+#
+# The non-obvious env below is kept on purpose — each line is a fix for a real
+# operational footgun (logout-on-recreate, DB/WAL bloat, OOM on big payloads,
+# resolv.conf snapshots). Comments explain the why so they survive the next bump.
+
+services:
+  n8n:
+    # Pinned (not :latest) so a docker pull never jumps a minor unattended.
+    image: docker.n8n.io/n8nio/n8n:2.25.7
+    container_name: n8n
+    hostname: n8n
+    restart: unless-stopped
+    depends_on:
+      n8n-db:
+        condition: service_healthy
+
+    # Caddy reaches n8n over the proxy network by name; no host port published.
+    expose:
+      - "5678"
+
+    # Pin external DNS. Docker snapshots /etc/resolv.conf at container-create
+    # time, so a host-side DNS change (VPN up/down, MagicDNS dying) silently
+    # kills outbound nodes (SMTP/IMAP/HTTP). Fixing the resolvers here decouples
+    # the container from host resolv.conf churn.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+    environment:
+      # --- instance basics ---
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
+      - N8N_RUNNERS_ENABLE=true                 # run Code nodes in a task runner subprocess
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      # Credentials encryption key. Must stay constant or saved credentials become
+      # undecryptable. Set once, never rotate without re-entering every credential.
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      # Without an explicit JWT secret, n8n generates a fresh one on every start →
+      # every recreate/upgrade logs everyone out. Pin it (openssl rand -hex 32).
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET}
+
+      # --- database (dedicated postgres, not the shared instance) ---
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=n8n-db
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD}
+
+      # --- editor / behaviour ---
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-UTC}   # used by Cron / Schedule nodes
+      - N8N_AUTO_EDIT=true
+      - N8N_AUTO_EDIT_TIMEOUT=15000
+      - N8N_AUTO_EDIT_MAX_CHUNK_LENGTH=10000
+      - N8N_METRICS=true
+
+      # --- network / behind Cloudflare Tunnel on its own hostname ---
+      # Exposed at N8N_HOSTNAME via cloudflared (see cloudflare-tunnel/), gated by
+      # Cloudflare Access. Map the hostname to http://n8n:5678 in the dashboard.
+      - N8N_HOST=${N8N_HOSTNAME}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - N8N_EDITOR_BASE_URL=https://${N8N_HOSTNAME}/
+      - WEBHOOK_URL=https://${N8N_HOSTNAME}/
+      - N8N_PROXY_HOPS=1                # trust 1 proxy hop (Cloudflare) for X-Forwarded-For
+      # TLS terminates at Caddy; traffic to the container is plain http, so the
+      # secure-cookie flag must be off or the login cookie is never set.
+      - N8N_SECURE_COOKIE=false
+
+      # --- execution data: keep success runs visible, prune to bound growth ---
+      # saveOnSuccess=all restores "run shows up in the list" visibility; pruning
+      # (age + count caps) stops the executions table / WAL from ballooning.
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=72            # hours
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=10000
+      # Store binary payloads on the filesystem (bind volume) instead of the DB,
+      # so big attachments don't bloat the DB/WAL.
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+
+      # --- heap (opt-in) ---
+      # Workflows that load large payloads (100MB+ JSON, big batches) can OOM the
+      # main process. Raise the main heap and the Code-node runner heap to roughly
+      # a third of the host RAM each. Left commented so small hosts use defaults.
+      # - NODE_OPTIONS=--max-old-space-size=4096
+      # - N8N_RUNNERS_MAX_OLD_SPACE_SIZE=4096
+
+    volumes:
+      - ${DATA_DIR:-~/docker-data}/n8n/data:/home/node/.n8n
+
+    networks:
+      - n8n-internal
+      - proxy
+
+    # Cap resources on a shared host (optional — uncomment and size to the host):
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '4.0'
+    #       memory: 6G
+
+  n8n-db:
+    image: postgres:16-alpine
+    container_name: n8n-db
+    restart: unless-stopped
+
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=${N8N_DB_PASSWORD}
+      - POSTGRES_DB=n8n
+
+    volumes:
+      - ${DATA_DIR:-~/docker-data}/n8n/db:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - n8n-internal
+
+networks:
+  n8n-internal:
+    driver: bridge
+  proxy:
+    external: true

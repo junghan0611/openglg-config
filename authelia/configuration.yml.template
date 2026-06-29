@@ -49,7 +49,10 @@ access_control:
       resources: ['^/$', '^/(assets|icons)([/?].*)?$']
       policy: bypass
 
-    # Metabase — 인증 필요
+    # Metabase — 인증 필요 [Gateway OPTION A: Caddy + Authelia].
+    # OPTION B (Cloudflare Tunnel): drop this rule and gate metabase with
+    # Cloudflare Access instead. (n8n likewise has no Authelia rule — it runs its
+    # own login behind either a Caddy subdomain or the tunnel.)
     - domain: 'DOMAIN'
       resources: ['^/metabase([/?].*)?$']
       policy: one_factor

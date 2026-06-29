@@ -1,6 +1,7 @@
 services:
   metabase:
-    image: metabase/metabase:latest
+    # Pinned (not :latest) so a pull never silently jumps a major version.
+    image: metabase/metabase:v0.59.13
     container_name: metabase
     restart: unless-stopped
 
@@ -12,10 +13,18 @@ services:
       - MB_DB_PASS=${METABASE_DB_PASSWORD}
       - MB_DB_HOST=postgres
       - MB_ENCRYPTION_SECRET_KEY=${METABASE_SECRET_KEY}
-      - MB_SITE_URL=https://${DOMAIN}/metabase
+      # Canonical site URL — must match how you expose metabase (see README "Gateway"):
+      #   OPTION A (Caddy + Authelia):  - MB_SITE_URL=https://${DOMAIN}/metabase
+      #   OPTION B (Cloudflare Tunnel): - MB_SITE_URL=https://${METABASE_HOSTNAME}
+      # Option B is active below; switch the line to use Option A.
+      - MB_SITE_URL=https://${METABASE_HOSTNAME}
       - MB_ENABLE_PUBLIC_SHARING=true
       - MB_ENABLE_EMBEDDING=true
-      - JAVA_OPTS=-Xms512m -Xmx2g
+      # App-DB (metadata) connection pool. Default 15 saturates under afternoon
+      # peak concurrency (15/15 full → streaming queries stall); 30 has headroom.
+      - MB_APPLICATION_DB_MAX_CONNECTION_POOL_SIZE=30
+      # Heap sized for real workloads. Lower (e.g. -Xms512m -Xmx2g) on a small VPS.
+      - JAVA_OPTS=-Xms2g -Xmx4g
 
     volumes:
       - ${DATA_DIR:-~/docker-data}/metabase:/metabase-data

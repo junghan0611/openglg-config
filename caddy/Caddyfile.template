@@ -1,6 +1,8 @@
-# Caddy + Authelia (path 기반 라우팅)
-# Copy to Caddyfile and replace DOMAIN with your domain
-# cp Caddyfile.template Caddyfile
+# Gateway OPTION A — Caddy + Authelia (path-based routing).
+# OPTION B is Cloudflare Tunnel + Access (free); see cloudflare-tunnel/. You can
+# pick one globally or mix per service — the metabase/n8n examples below show both.
+# Copy to Caddyfile and replace DOMAIN with your domain:
+#   cp Caddyfile.template Caddyfile
 
 (authelia) {
 	forward_auth authelia:9091 {
@@ -41,7 +43,11 @@ DOMAIN {
 	# === 인증 필요 서비스 ===
 	# route로 forward_auth → strip → proxy 순서 보장
 
-	# /metabase → Metabase
+	# /metabase → Metabase  [Gateway OPTION A: Caddy + Authelia]
+	# OPTION B (Cloudflare Tunnel + Access): delete this block and route
+	# metabase.<domain> via cloudflare-tunnel/ instead. Pick one — see README
+	# "Gateway". metabase supports both a /metabase sub-path (here) and a dedicated
+	# hostname (tunnel); set MB_SITE_URL in metabase/ to match.
 	handle /metabase/* {
 		route {
 			import authelia
@@ -122,3 +128,14 @@ DOMAIN {
 		reverse_proxy homer:8080
 	}
 }
+
+# n8n — needs its OWN hostname (no working sub-path mode, so it cannot live under
+# /n8n/ like the others). Two gateway options:
+#   OPTION A (Caddy + Authelia): uncomment the block below and add a DNS record
+#     for n8n.DOMAIN. n8n runs its own login + JWT, so Authelia is NOT imported.
+#   OPTION B (Cloudflare Tunnel + Access): leave this commented and route
+#     n8n.<domain> via cloudflare-tunnel/ instead.
+# Pick one — see README "Gateway".
+# n8n.DOMAIN {
+# 	reverse_proxy n8n:5678
+# }
